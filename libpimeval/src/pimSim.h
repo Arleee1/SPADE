@@ -63,7 +63,13 @@ public:
   PimObjId pimAlloc(PimAllocEnum allocType, uint64_t numElements, PimDataType dataType);
   PimObjId pimAllocAssociated(PimObjId assocId, PimDataType dataType);
   PimObjId pimAllocBuffer(uint32_t numElements, PimDataType dataType);
+  PimObjGrid pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
+                          size_t numCoresVertical, size_t numCoresHorizontal,
+                          size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
+                          PimAllocationStrategy allocationStrategy);
+  PimObjGrid pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical);
   bool pimFree(PimObjId obj);
+  bool pimFreeGrid(PimObjGrid grid);
   PimObjId pimCreateRangedRef(PimObjId refId, uint64_t idxBegin, uint64_t idxEnd);
   PimObjId pimCreateDualContactRef(PimObjId refId);
 
@@ -72,6 +78,10 @@ public:
   bool pimCopyDeviceToMain(PimObjId src, void* dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
   bool pimCopyMainToDeviceWithType(PimCopyEnum copyType, void* src, PimObjId dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
   bool pimCopyDeviceToMainWithType(PimCopyEnum copyType, PimObjId src, void* dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
+  bool pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                                       uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
+  bool pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                           uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
   bool pimCopyDeviceToDevice(PimObjId src, PimObjId dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
   bool pimCopyObjectToObject(PimObjId src, PimObjId dest);
   bool pimConvertType(PimObjId src, PimObjId dest);
@@ -125,8 +135,8 @@ public:
   bool pimShiftElementsLeft(PimObjId src);
   bool pimShiftBitsRight(PimObjId src, PimObjId dest, unsigned shiftAmount);
   bool pimShiftBitsLeft(PimObjId src, PimObjId dest, unsigned shiftAmount);
-  bool pimAesSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut); 
-  bool pimAesInverseSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut); 
+  bool pimAesSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut);
+  bool pimAesInverseSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut);
   bool pimPrefixSum(PimObjId src, PimObjId dest);
   bool pimMAC(PimObjId src1, PimObjId src2, void* dest);
 

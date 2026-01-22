@@ -281,7 +281,13 @@ public:
   PimObjId pimAlloc(PimAllocEnum allocType, uint64_t numElements, PimDataType dataType);
   PimObjId pimAllocAssociated(PimObjId assocId, PimDataType dataType);
   PimObjId pimAllocBuffer(uint32_t numElements, PimDataType dataType);
+  PimObjGrid pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
+                          size_t numCoresVertical, size_t numCoresHorizontal,
+                          size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
+                          PimAllocationStrategy allocationStrategy);
+  PimObjGrid pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical);
   bool pimFree(PimObjId objId);
+  bool pimFreeGrid(PimObjGrid grid);
   PimObjId pimCreateRangedRef(PimObjId refId, uint64_t idxBegin, uint64_t idxEnd);
   PimObjId pimCreateDualContactRef(PimObjId refId);
 
@@ -296,7 +302,7 @@ public:
 private:
   pimRegion findAvailRegionOnCore(PimCoreId coreId, unsigned numAllocRows, unsigned numAllocCols) const;
   std::vector<PimCoreId> getCoreIdsSortedByLeastUsage() const;
-  
+
   //! @class  coreUsage
   //! @brief  Track row usage for allocation
   class coreUsage {

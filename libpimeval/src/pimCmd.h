@@ -26,6 +26,8 @@ enum class PimCmdEnum {
   COPY_H2D,
   COPY_D2H,
   COPY_D2D,
+  COPY_GRID_H2D,
+  COPY_GRID_D2H,
   COPY_O2O, // This copies data between two associated memory objects. Hence, will be treated as PIM command not data copy
   // Functional 1-operand
   ABS,
@@ -201,7 +203,35 @@ protected:
   PimObjId m_src = -1;
   PimObjId m_dest = -1;
   uint64_t m_idxBegin = 0;
-  uint64_t m_idxEnd = 0; 
+  uint64_t m_idxEnd = 0;
+  bool m_copyFullRange = false;
+};
+
+class pimCmdCopyGrid : public pimCmd
+{
+public:
+  pimCmdCopyGrid(PimCmdEnum cmdType, PimCopyEnum copyType, void* src, PimObjGrid& destGrid, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0)
+    : pimCmd(PimCmdEnum::COPY_GRID_H2D), m_copyType(copyType), m_ptr(src), m_destGrid(destGrid), m_idxBeginX(idxBeginX), m_idxEndX(idxEndX),
+      m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL) {}
+  pimCmdCopyGrid(PimCmdEnum cmdType, PimCopyEnum copyType, PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0)
+    : pimCmd(PimCmdEnum::COPY_GRID_D2H), m_copyType(copyType), m_ptr(dest), m_srcGrid(srcGrid), m_idxBeginX(idxBeginX), m_idxEndX(idxEndX),
+      m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL) {}
+
+  virtual ~pimCmdCopyGrid() {}
+  virtual bool execute() override;
+  virtual bool sanityCheck() const override;
+  virtual bool updateStats() const override;
+protected:
+  PimCopyEnum m_copyType;
+  void* m_ptr = nullptr;
+  PimObjGrid m_srcGrid;
+  PimObjGrid m_destGrid;
+  uint64_t m_idxBeginX = 0;
+  uint64_t m_idxEndX = 0;
+  uint64_t m_idxBeginY = 0;
+  uint64_t m_idxEndY = 0;
   bool m_copyFullRange = false;
 };
 
@@ -223,7 +253,7 @@ protected:
   PimObjId m_src;
   PimObjId m_dest;
   uint64_t m_scalarValue;
-  std::vector<uint8_t> m_lut; 
+  std::vector<uint8_t> m_lut;
 private:
   template<typename T>
   inline bool computeResult(T operand, PimCmdEnum cmdType, T scalarValue, T& result, int bitsPerElementSrc) {
@@ -275,7 +305,7 @@ private:
     }
     case PimCmdEnum::AES_SBOX:
     case PimCmdEnum::AES_INVERSE_SBOX:
-      result = m_lut[operand]; 
+      result = m_lut[operand];
       break;
     default:
         std::printf("PIM-Error: Unexpected cmd type %d\n", static_cast<int>(cmdType));

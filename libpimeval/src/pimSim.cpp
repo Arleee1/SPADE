@@ -250,6 +250,26 @@ pimSim::pimAllocBuffer(uint32_t numElements, PimDataType dataType)
   return m_device->pimAllocBuffer(numElements, dataType);
 }
 
+PimObjGrid
+pimSim::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
+                          size_t numCoresVertical, size_t numCoresHorizontal,
+                          size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
+                          PimAllocationStrategy allocationStrategy)
+{
+  pimPerfMon perfMon("pimAllocGrid");
+  if (!isValidDevice()) { return {}; }
+  return m_device->pimAllocGrid(allocType, dataType, numCoresVertical,
+    numCoresHorizontal, numElementsPerCoreVertical, numElementsPerCoreHorizontal, allocationStrategy);
+}
+
+PimObjGrid
+pimSim::pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical)
+{
+  pimPerfMon perfMon("pimAllocGridAssociated");
+  if (!isValidDevice()) { return {}; }
+  return m_device->pimAllocGridAssociated(assocId, dataType, numElementsPerCoreVertical);
+}
+
 // @brief  Free a PIM object
 bool
 pimSim::pimFree(PimObjId obj)
@@ -257,6 +277,15 @@ pimSim::pimFree(PimObjId obj)
   pimPerfMon perfMon("pimFree");
   if (!isValidDevice()) { return false; }
   return m_device->pimFree(obj);
+}
+
+// @brief  Free a PimObjGrid
+bool
+pimSim::pimFreeGrid(PimObjGrid grid)
+{
+  pimPerfMon perfMon("pimFreeGrid");
+  if (!isValidDevice()) { return false; }
+  return m_device->pimFreeGrid(grid);
 }
 
 //! @brief  Create an obj referencing to a range of an existing obj
@@ -311,6 +340,25 @@ pimSim::pimCopyDeviceToMainWithType(PimCopyEnum copyType, PimObjId src, void* de
   pimPerfMon perfMon("pimCopyDeviceToMain");
   if (!isValidDevice()) { return false; }
   return m_device->pimCopyDeviceToMainWithType(copyType, src, dest, idxBegin, idxEnd);
+}
+
+bool
+pimSim::pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX, uint64_t idxEndX,
+                                       uint64_t idxBeginY, uint64_t idxEndY)
+{
+  pimPerfMon perfMon("pimCopyHostToGrid");
+  if (!isValidDevice()) { return false; }
+  return m_device->pimCopyHostToGrid(src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY);
+}
+
+// @brief  Copy data from a PimObjGrid to a flattened 2D array in host memory
+bool
+pimSim::pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
+                           uint64_t idxBeginY, uint64_t idxEndY)
+{
+  pimPerfMon perfMon("pimCopyGridToHost");
+  if (!isValidDevice()) { return false; }
+  return m_device->pimCopyGridToHost(srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);
 }
 
 // @brief  Copy data from PIM device to device within a range
@@ -657,7 +705,7 @@ bool pimSim::pimMAC(PimObjId src1, PimObjId src2, void* dest)
   const PimDataType dataType = m_device->getResMgr()->getObjInfo(src1).getDataType();
   std::unique_ptr<pimCmd> cmd;
   PimCmdEnum cmdType = PimCmdEnum::MAC;
-  
+
   switch (dataType) {
     case PimDataType::PIM_INT8:
       cmd = std::make_unique<pimCmdMAC<int8_t>>(cmdType, src1, src2, dest);
@@ -942,7 +990,7 @@ pimSim::pimShiftBitsLeft(PimObjId src, PimObjId dest, unsigned shiftAmount)
   return m_device->executeCmd(std::move(cmd));
 }
 
-bool 
+bool
 pimSim::pimAesSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut)
 {
   pimPerfMon perfMon("pimAesSbox");
@@ -951,7 +999,7 @@ pimSim::pimAesSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut)
   return m_device->executeCmd(std::move(cmd));
 }
 
-bool 
+bool
 pimSim::pimAesInverseSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut)
 {
   pimPerfMon perfMon("pimAesInverseSbox");

@@ -557,7 +557,7 @@ pimResMgr::pimAllocAssociated(PimObjId assocId, PimDataType dataType)
     numRegions = (numElements * bitsPerElement - 1) / numCols + 1;
 
     // This is a controversial design decision. I am not fully sold on this
-    // TODO: discuss with professor before implementing the `non-controversial` design 
+    // TODO: discuss with professor before implementing the `non-controversial` design
     if (numRegions > assocObj.getRegions().size()) {
       printf("PIM-Error: pimAllocAssociated: Allocation type %s does not allow to allocate more regions (%lu) than associated object (%lu)\n",
              pimUtils::pimAllocEnumToStr(allocType).c_str(), numRegions, assocObj.getRegions().size());
@@ -577,7 +577,7 @@ pimResMgr::pimAllocAssociated(PimObjId assocId, PimDataType dataType)
     numElemPerRegion = numCols / bitsPerElement;
     numElemPerRegionLast = numColsToAllocLast / bitsPerElement;
     numColsPerElem = bitsPerElement;
-  }    
+  }
 
   bool success = true;
   for (unsigned i = 0; i < numCores; ++i) {
@@ -664,6 +664,25 @@ pimResMgr::pimAllocAssociated(PimObjId assocId, PimDataType dataType)
   return objId;
 }
 
+//! @brief  Allocate a new PIM object with detailed parameters
+PimObjGrid
+pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
+                          size_t numCoresVertical, size_t numCoresHorizontal,
+                          size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
+                          PimAllocationStrategy allocationStrategy)
+{
+  assert(0); // todo
+  return {};
+}
+
+//! @brief  Allocate a new PIM Grid object associated with an existing object
+PimObjGrid
+pimResMgr::pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical)
+{
+  assert(0); // todo
+  return {};
+}
+
 //! @brief  Free a PIM object
 bool
 pimResMgr::pimFree(PimObjId objId)
@@ -693,6 +712,17 @@ pimResMgr::pimFree(PimObjId objId)
     printf("PIM-Debug: pimFree: Deleted object %d\n", objId);
   }
   return true;
+}
+
+//! @brief Free a PIM Grid object
+bool
+pimResMgr::pimFreeGrid(PimObjGrid grid)
+{
+  bool ok = true;
+  for (PimObjId objId : grid) {
+    ok &= this->pimFree(objId);
+  }
+  return ok;
 }
 
 //! @brief  Create an obj referencing to a range of an existing obj

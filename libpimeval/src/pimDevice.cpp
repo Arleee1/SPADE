@@ -63,7 +63,7 @@ pimDevice::adjustConfigForSimTarget(unsigned& numRanks, unsigned& numBankPerRank
     }
     numRows *= numSubarrayPerBank*2;
     numSubarrayPerBank = 1;
-    numBankPerRank /= 2; 
+    numBankPerRank /= 2;
     break;
   default:
     assert(0);
@@ -194,11 +194,42 @@ pimDevice::pimAllocAssociated(PimObjId assocId, PimDataType dataType)
   return m_resMgr->pimAllocAssociated(assocId, dataType);
 }
 
+//! @brief  Allocate grid of cores, with specified sizes of data per core
+PimObjGrid
+pimDevice::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
+                          size_t numCoresVertical, size_t numCoresHorizontal,
+                          size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
+                          PimAllocationStrategy allocationStrategy)
+{
+  if (allocType == PIM_ALLOC_AUTO) {
+    if (isVLayoutDevice()) {
+      allocType = PIM_ALLOC_V;
+    } else if (isHLayoutDevice()) {
+      allocType = PIM_ALLOC_H;
+    } else {
+      assert(0);
+    }
+  }
+  return m_resMgr->pimAllocGrid(allocType, dataType, numCoresVertical, numCoresHorizontal, numElementsPerCoreVertical, numElementsPerCoreHorizontal, allocationStrategy);
+}
+
+PimObjGrid
+pimDevice::pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical)
+{
+  return m_resMgr->pimAllocGridAssociated(assocId, dataType, numElementsPerCoreVertical);
+}
+
 //! @brief  Free a PIM object
 bool
 pimDevice::pimFree(PimObjId obj)
 {
   return m_resMgr->pimFree(obj);
+}
+
+bool
+pimDevice::pimFreeGrid(PimObjGrid grid)
+{
+  return m_resMgr->pimFreeGrid(grid);
 }
 
 //! @brief  Create an obj referencing to a range of an existing obj
@@ -246,6 +277,30 @@ pimDevice::pimCopyDeviceToMainWithType(PimCopyEnum copyType, PimObjId src, void*
 {
   std::unique_ptr<pimCmd> cmd =
     std::make_unique<pimCmdCopy>(PimCmdEnum::COPY_D2H, copyType, src, dest, idxBegin, idxEnd);
+  return executeCmd(std::move(cmd));
+}
+
+//! @brief  Copy data from host to PimObjGrid
+bool
+pimDevice::pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX, uint64_t idxEndX,
+                                       uint64_t idxBeginY, uint64_t idxEndY)
+{
+  assert(!destGrid.empty());
+  PimCopyEnum copyType = m_resMgr->isHLayoutObj(destGrid[0]) ? PIM_COPY_H : PIM_COPY_V;
+  std::unique_ptr<pimCmd> cmd =
+    std::make_unique<pimCmdCopyGrid>(PimCmdEnum::COPY_H2D, copyType, src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY);
+  return executeCmd(std::move(cmd));
+}
+
+//! @brief  Copy data from PimObjGrid to host
+bool
+pimDevice::pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
+                           uint64_t idxBeginY, uint64_t idxEndY)
+{
+  assert(!srcGrid.empty());
+  PimCopyEnum copyType = m_resMgr->isHLayoutObj(srcGrid[0]) ? PIM_COPY_H : PIM_COPY_V;
+  std::unique_ptr<pimCmd> cmd =
+    std::make_unique<pimCmdCopyGrid>(PimCmdEnum::COPY_D2H, copyType, srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);
   return executeCmd(std::move(cmd));
 }
 

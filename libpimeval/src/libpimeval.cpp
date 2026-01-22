@@ -103,11 +103,38 @@ pimAllocBuffer(uint32_t numElements, PimDataType dataType)
   return pimSim::get()->pimAllocBuffer(numElements, dataType);
 }
 
+//! @brief  Allocate grid of cores, with specified sizes of data per core
+PimObjGrid
+pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
+                          size_t numCoresVertical, size_t numCoresHorizontal,
+                          size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
+                          PimAllocationStrategy allocationStrategy)
+{
+  return pimSim::get()->pimAllocGrid(allocType, dataType,
+                                      numCoresVertical, numCoresHorizontal,
+                                      numElementsPerCoreVertical, numElementsPerCoreHorizontal,
+                                      allocationStrategy);
+}
+
+//! @brief  Allocate more PimObjs associated with an existing PimObjId
+PimObjGrid
+pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical)
+{
+  return pimSim::get()->pimAllocGridAssociated(assocId, dataType, numElementsPerCoreVertical);
+}
+
 //! @brief  Free a PIM resource
 PimStatus
 pimFree(PimObjId obj)
 {
   bool ok = pimSim::get()->pimFree(obj);
+  return ok ? PIM_OK : PIM_ERROR;
+}
+
+PimStatus
+pimFreeGrid(PimObjGrid grid)
+{
+  bool ok = pimSim::get()->pimFreeGrid(grid);
   return ok ? PIM_OK : PIM_ERROR;
 }
 
@@ -154,6 +181,22 @@ PimStatus
 pimCopyDeviceToHostWithType(PimCopyEnum copyType, PimObjId src, void* dest, uint64_t idxBegin, uint64_t idxEnd)
 {
   bool ok = pimSim::get()->pimCopyDeviceToMainWithType(copyType, src, dest, idxBegin, idxEnd);
+  return ok ? PIM_OK : PIM_ERROR;
+}
+
+//! @brief  Copy data from a flattened 2D array in host memory to a PimObjGrid
+PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX, uint64_t idxEndX,
+                                       uint64_t idxBeginY, uint64_t idxEndY)
+{
+  bool ok = pimSim::get()->pimCopyHostToGrid(src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY);
+  return ok ? PIM_OK : PIM_ERROR;
+}
+
+//! @brief  Copy data from a PimObjGrid to a flattened 2D array in host memory
+PimStatus pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
+                           uint64_t idxBeginY, uint64_t idxEndY)
+{
+  bool ok = pimSim::get()->pimCopyGridToHost(srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);
   return ok ? PIM_OK : PIM_ERROR;
 }
 
@@ -414,7 +457,7 @@ PimStatus pimMaxScalar(PimObjId src, PimObjId dest, uint64_t scalarValue)
   return ok ? PIM_OK : PIM_ERROR;
 }
 
-PimStatus pimScaledAdd(PimObjId src1, PimObjId src2, PimObjId dest, uint64_t scalarValue) 
+PimStatus pimScaledAdd(PimObjId src1, PimObjId src2, PimObjId dest, uint64_t scalarValue)
 {
   bool ok = pimSim::get()->pimScaledAdd(src1, src2, dest, scalarValue);
   return ok ? PIM_OK : PIM_ERROR;
@@ -477,7 +520,7 @@ pimCondSelectScalar(PimObjId condBool, PimObjId src1, uint64_t scalarBits, PimOb
  }
 
 //! @brief  AES Sbox: dest[i] = lut[src[i]]
-PimStatus 
+PimStatus
 pimAesSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut)
 {
   bool ok = pimSim::get()->pimAesSbox(src, dest, lut);
@@ -485,7 +528,7 @@ pimAesSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut)
 }
 
 //! @brief  AES Sbox: dest[i] = lut[src[i]] (similar to AES sbox, different in perforamance and energy model for the bit-serial architecture)
-PimStatus 
+PimStatus
 pimAesInverseSbox(PimObjId src, PimObjId dest, const std::vector<uint8_t>& lut)
 {
   bool ok = pimSim::get()->pimAesInverseSbox(src, dest, lut);

@@ -220,6 +220,7 @@ public:
       m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL) {}
 
   virtual ~pimCmdCopyGrid() {}
+  //! @todo grid: copy to grid, copy from grid
   virtual bool execute() override;
   virtual bool sanityCheck() const override;
   virtual bool updateStats() const override;

@@ -196,6 +196,8 @@ public:
   void setRefObjId(PimObjId refObjId) { m_refObjId = refObjId; }
   void setIsDualContactRef(bool val) { m_isDualContactRef = val; }
   void setNumColsPerElem(unsigned val) { m_numColsPerElem = val; }
+  //! @todo grid: would it be better to have an enum for object types (i.e., enum member for grid member, buffer, etc.)
+  void setIsGridMember(bool val) { m_isGridMember = val; }
   void finalize();
 
   PimObjId getObjId() const { return m_objId; }
@@ -267,6 +269,7 @@ private:
   pimDevice* m_device = nullptr; // for accessing simulated memory
   bool m_isLoadBalanced = true;
   bool m_isBuffer = false; // true if this is a global buffer
+  bool m_isGridMember = false;
 };
 
 

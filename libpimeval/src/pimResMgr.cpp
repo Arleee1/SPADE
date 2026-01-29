@@ -671,15 +671,151 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
                           PimAllocationStrategy allocationStrategy)
 {
-  assert(0); // todo
-  return {};
+  if (m_debugAlloc) {
+    printf("PIM-Debug: pimAllocGrid: Request: %s (%lu x %lu) cores of (%lu x %lu) elements of type %s\n",
+           pimUtils::pimAllocEnumToStr(allocType).c_str(), numCoresHorizontal, numCoresVertical,
+           numElementsPerCoreVertical, numElementsPerCoreHorizontal,
+           pimUtils::pimDataTypeEnumToStr(dataType).c_str());
+  }
+
+  if (numElementsPerCoreVertical == 0 || numElementsPerCoreHorizontal == 0) {
+    printf("PIM-Error: pimAllocGrid: Invalid input parameter: 0 elements per core\n");
+    return {};
+  }
+
+  unsigned numCoresToAlloc = numCoresVertical * numElementsPerCoreHorizontal;
+  if (numCoresToAlloc == 0) {
+    printf("PIM-Error: pimAllocGrid: Invalid input parameter: 0 cores\n");
+    return {};
+  }
+
+  unsigned numCores = m_device->getNumCores();
+  if(numCoresToAlloc > numCores) {
+    printf("PIM-Error: pimAllocGrid: Attempting to allocate %u cores when device only has %u cores\n",
+            numCoresToAlloc, numCores);
+    return {};
+  }
+
+  unsigned bitsPerElement = pimUtils::getNumBitsOfDataType(dataType, PimBitWidth::SIM);
+
+  unsigned rowsPerCoreToAlloc = 0;
+  unsigned colsPerCoreToAlloc = 0;
+  unsigned rowsPerCorePerObjToAlloc = 0;
+  unsigned numColsPerElem = 0;
+  if (allocType == PIM_ALLOC_V || allocType == PIM_ALLOC_V1) {
+    rowsPerCoreToAlloc = numElementsPerCoreVertical * bitsPerElement;
+    colsPerCoreToAlloc = numElementsPerCoreHorizontal;
+    rowsPerCorePerObjToAlloc = bitsPerElement;
+    numColsPerElem = 1;
+  } else if (allocType == PIM_ALLOC_H || allocType == PIM_ALLOC_H1) {
+    rowsPerCoreToAlloc = numElementsPerCoreVertical;
+    colsPerCoreToAlloc = numElementsPerCoreHorizontal * bitsPerElement;
+    rowsPerCorePerObjToAlloc = 1;
+    numColsPerElem = bitsPerElement;
+  } else {
+    printf("PIM-Error: pimAlloc: Unsupported allocation type %s\n",
+           pimUtils::pimAllocEnumToStr(allocType).c_str());
+    return {};
+  }
+
+  if (m_debugAlloc) {
+    printf("PIM-Debug: pimAlloc: Allocate %lu regions among %u cores\n",
+           numElementsPerCoreVertical * numCoresToAlloc, numCores);
+    printf("PIM-Debug: pimAlloc: Each region has %u rows x %u cols with %lu elements\n",
+           rowsPerCorePerObjToAlloc, colsPerCoreToAlloc, numElementsPerCoreHorizontal);
+  }
+
+  std::vector<PimCoreId> sortedCoreId = getCoreIdsSortedByLeastUsage();
+
+  // check if most used core needed has room
+  // if there is room in this core, then there is enough room in all other cores used
+  // assumes all cores have the same capacity
+  //! @todo grid: use allocation strategy when selecting core
+  unsigned lastRows = m_coreUsage.at(sortedCoreId[numCoresToAlloc-1])->getNumRowsPerCore();
+  unsigned lastUsed = m_coreUsage.at(sortedCoreId[numCoresToAlloc-1])->getTotRowsInUse();
+  unsigned numCols = m_device->getNumCols();
+  if(lastUsed + rowsPerCoreToAlloc > lastRows || colsPerCoreToAlloc > numCols) {
+    printf("PIM-Error: pimAllocGrid: Not enough available PIM cores\n");
+    return {};
+  }
+
+  std::vector<pimObjInfo> newObjs;
+  newObjs.reserve(numElementsPerCoreVertical);
+  for(size_t i=0; i<numElementsPerCoreVertical; ++i) {
+    newObjs.emplace_back(m_availObjId, dataType, allocType, numElementsPerCoreHorizontal, bitsPerElement, m_device);
+    newObjs.back().setIsGridMember(true);
+    m_availObjId++;
+  }
+
+  // create new regions
+  bool success = true;
+  for (unsigned i = 0; i < numCoresToAlloc; ++i) {
+    m_coreUsage.at(sortedCoreId[i])->newAllocStart();
+  }
+  if (allocType == PIM_ALLOC_V || allocType == PIM_ALLOC_V1 || allocType == PIM_ALLOC_H || allocType == PIM_ALLOC_H1) {
+    for (uint64_t newObjIdx = 0; newObjIdx < numElementsPerCoreVertical; ++newObjIdx) {
+      uint64_t elemIdx = 0;
+      for (uint64_t sortedCoreIdx = 0; sortedCoreIdx < numCoresToAlloc; ++sortedCoreIdx) {
+        PimCoreId coreId = sortedCoreId[sortedCoreIdx];
+        // unsigned numColsToAlloc = (i == numRegions - 1 ? numColsToAllocLast : numCols);
+        // unsigned numElemInRegion = (i == numRegions - 1 ? numElemPerRegionLast : numElemPerRegion);
+        pimRegion newRegion = findAvailRegionOnCore(coreId, rowsPerCorePerObjToAlloc, colsPerCoreToAlloc);
+        if (!newRegion.isValid()) {
+          printf("PIM-Error: pimAlloc: Failed: Out of PIM memory\n");
+          success = false;
+          break;
+        }
+        newRegion.setElemIdxBegin(elemIdx);
+        elemIdx += numElementsPerCoreHorizontal;
+        newRegion.setElemIdxEnd(elemIdx); // exclusive
+        newRegion.setNumColsPerElem(numColsPerElem);
+        newObjs[newObjIdx].addRegion(newRegion);
+
+        // add to core usage map
+        auto alloc = std::make_pair(newRegion.getRowIdx(), rowsPerCorePerObjToAlloc);
+        m_coreUsage.at(coreId)->addRange(alloc, newObjs[newObjIdx].getObjId());
+      }
+    }
+  }
+  for (unsigned i = 0; i < numCoresToAlloc; ++i) {
+    m_coreUsage.at(sortedCoreId[i])->newAllocEnd(success); // rollback if failed
+  }
+
+  if (!success) {
+    return {};
+  }
+
+  std::vector<PimObjId> objIds(numElementsPerCoreVertical);
+  for(size_t i=0; i<objIds.size(); ++i) {
+    pimObjInfo& newObj = newObjs[i];
+    if(newObj.isValid()) {
+      objIds[i] = newObj.getObjId();
+      newObj.finalize();
+      m_objMap.insert(std::make_pair(newObj.getObjId(), newObj));
+    }
+  }
+
+  if (m_debugAlloc) {
+    for(size_t i=0; i<objIds.size(); ++i) {
+      pimObjInfo& newObj = newObjs[i];
+      if (newObj.isValid()) {
+        printf("PIM-Debug: pimAlloc: Allocated PIM object %d successfully\n", newObj.getObjId());
+        newObj.print();
+      } else {
+        printf("PIM-Debug: pimAlloc: Failed\n");
+      }
+    }
+  }
+  return objIds;
+  //! @todo grid: pim Alloc Grid - done? check work todo
 }
 
 //! @brief  Allocate a new PIM Grid object associated with an existing object
 PimObjGrid
 pimResMgr::pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical)
 {
-  assert(0); // todo
+  //! @todo grid: pim alloc grid
+  assert(0);
   return {};
 }
 

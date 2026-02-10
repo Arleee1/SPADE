@@ -742,8 +742,7 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
   std::vector<pimObjInfo> newObjs;
   newObjs.reserve(numElementsPerCoreVertical);
   for(size_t i=0; i<numElementsPerCoreVertical; ++i) {
-    newObjs.emplace_back(m_availObjId, dataType, allocType, numCoresToAlloc * numElementsPerCoreHorizontal, bitsPerElement, m_device);
-    newObjs.back().setIsGridMember(true);
+    newObjs.emplace_back(m_availObjId, dataType, allocType, numCoresToAlloc * numElementsPerCoreHorizontal, bitsPerElement, m_device, numCoresVertical, numCoresHorizontal);
     m_availObjId++;
   }
 
@@ -814,7 +813,7 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
 PimObjGrid
 pimResMgr::pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical)
 {
-  //! @todo grid: pim alloc grid
+  //! @todo grid: pim alloc grid assoc
   assert(0);
   return {};
 }
@@ -1008,6 +1007,21 @@ pimResMgr::coreUsage::newAllocEnd(bool success)
     }
   }
   m_newAlloc.clear();
+}
+
+//! @brief check if a PIM grid is valid
+bool
+pimResMgr::isValidGrid(const PimObjGrid& pimGrid) const
+{
+  if(pimGrid.empty()) {
+    return false;
+  }
+  for(PimObjId objId : pimGrid) {
+    if(!isValidObjId(objId)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 //! @brief  If a PIM object uses vertical data layout

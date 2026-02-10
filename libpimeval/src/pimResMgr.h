@@ -188,6 +188,21 @@ public:
       m_device(device),
       m_isBuffer(isBuffer)
   {}
+  // Constructs grid member PIM object
+  pimObjInfo(PimObjId objId, PimDataType dataType, PimAllocEnum allocType, uint64_t numElements, unsigned bitsPerElementPadded, pimDevice* device, uint64_t numCoresVertical, uint64_t numCoresHorizontal)
+    : m_objId(objId),
+      m_assocObjId(objId),
+      m_dataType(dataType),
+      m_allocType(allocType),
+      m_data(dataType, numElements),
+      m_numElements(numElements),
+      m_bitsPerElementPadded(bitsPerElementPadded),
+      m_device(device),
+      m_isBuffer(isBuffer),
+      m_isGridMember(true),
+      m_numCoresVertical(numCoresVertical),
+      m_numCoresHorizontal(numCoresHorizontal)
+  {}
   ~pimObjInfo() {}
 
   void addRegion(pimRegion region) { m_regions.push_back(region); }
@@ -196,8 +211,6 @@ public:
   void setRefObjId(PimObjId refObjId) { m_refObjId = refObjId; }
   void setIsDualContactRef(bool val) { m_isDualContactRef = val; }
   void setNumColsPerElem(unsigned val) { m_numColsPerElem = val; }
-  //! @todo grid: would it be better to have an enum for object types (i.e., enum member for grid member, buffer, etc.)
-  void setIsGridMember(bool val) { m_isGridMember = val; }
   void finalize();
 
   PimObjId getObjId() const { return m_objId; }
@@ -270,8 +283,9 @@ private:
   bool m_isLoadBalanced = true;
   bool m_isBuffer = false; // true if this is a global buffer
   bool m_isGridMember = false;
+  uint64_t m_numCoresVertical = 0;
+  uint64_t m_numCoresHorizontal = 0;
 };
-
 
 //! @class  pimResMgr
 //! @brief  PIM resource manager
@@ -295,6 +309,7 @@ public:
   PimObjId pimCreateDualContactRef(PimObjId refId);
 
   bool isValidObjId(PimObjId objId) const { return m_objMap.find(objId) != m_objMap.end(); }
+  bool isValidGrid(const PimObjGrid& pimGrid) const;
   const pimObjInfo& getObjInfo(PimObjId objId) const { assert(objId != -1); return m_objMap.at(objId); }
   pimObjInfo& getObjInfo(PimObjId objId) { assert(objId != -1); return m_objMap.at(objId); }
 

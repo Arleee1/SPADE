@@ -358,6 +358,91 @@ pimCmdCopy::updateStats() const
   return true;
 }
 
+//! @brief  PIM Grid Data Copy
+bool
+pimCmdCopyGrid::execute()
+{
+
+}
+
+//! @brief  PIM Grid Data Copy - sanity check
+bool
+pimCmdCopyGrid::sanityCheck() const
+{
+  pimResMgr* resMgr = m_device->getResMgr();
+  uint64_t numElements = 0;
+  uint64_t numCoresUsed = 0;
+  uint64_t numElementsPerCoreVertical = 0;
+  switch (m_cmdType) {
+  case PimCmdEnum::COPY_GRID_H2D:
+  {
+    if (!m_ptr) {
+      std::printf("PIM-Error: Invalid null pointer as grid copy source\n");
+      return false;
+    }
+    if (!resMgr->isValidGrid(m_destGrid)) {
+      std::printf("PIM-Error: Invalid PIM Grid as copy destination\n");
+      return false;
+    }
+    const pimObjInfo &objDest0 = m_device->getResMgr()->getObjInfo(m_destGrid[0]);
+    numElements = objDest0.getNumElements();
+    numCoresUsed = objDest0.getNumCoresUsed();
+    numElementsPerCoreVertical = m_destGrid.size();
+    break;
+  }
+  case PimCmdEnum::COPY_D2H:
+  {
+    if (!resMgr->isValidGrid(m_srcGrid)) {
+      std::printf("PIM-Error: Invalid PIM grid as copy source\n");
+      return false;
+    }
+    if (!m_ptr) {
+      std::printf("PIM-Error: Invalid null pointer as grid copy destination\n");
+      return false;
+    }
+    const pimObjInfo &objSrc0 = m_device->getResMgr()->getObjInfo(m_srcGrid[0]);
+    numElements = objSrc0.getNumElements();
+    numCoresUsed = objSrc0.getNumCoresUsed();
+    numElementsPerCoreVertical = m_srcGrid.size();
+    break;
+  }
+  default:
+    assert(0);
+  }
+
+  if (!m_copyFullRange) {
+    uint64_t numElementsPerCoreHorizontal = numElements / numCoresUsed;
+
+    if (m_idxBeginX > numElementsPerCoreHorizontal || m_idxEndX > numElementsPerCoreHorizontal) {
+      std::printf("PIM-Error: The X range for grid copy is out of bounds (max: %" PRIu64 ")\n",
+                  numElementsPerCoreHorizontal);
+      return false;
+    }
+    if (m_idxBeginY > numElementsPerCoreVertical || m_idxEndY > numElementsPerCoreVertical) {
+      std::printf("PIM-Error: The Y range for grid copy is out of bounds (max: %" PRIu64 ")\n",
+                  numElementsPerCoreVertical);
+      return false;
+    }
+    if (m_idxEndX < m_idxBeginX) {
+      std::printf("PIM-Error: The end of the X range for grid copy is less than its beginning\n");
+      return false;
+    }
+    if (m_idxEndY < m_idxBeginY) {
+      std::printf("PIM-Error: The end of the Y range for grid copy is less than its beginning\n");
+      return false;
+    }
+  }
+
+  return true;
+}
+
+//! @brief  PIM Grid Data Copy - update stats
+bool
+pimCmdCopyGrid::updateStats() const
+{
+
+}
+
 
 //! @brief  PIM CMD: Functional 1-operand
 bool
@@ -948,7 +1033,7 @@ pimCmdCond::updateStats() const
   pimSim::get()->getStatsMgr()->recordCmd(getName(dataType, isVLayout), mPerfEnergy);
   return true;
 }
- 
+
 //! @brief  PIM CMD: redsum non-ranged/ranged - sanity check
 template <typename T> bool
 pimCmdReduction<T>::sanityCheck() const
@@ -1001,7 +1086,7 @@ pimCmdReduction<T>::execute()
   }
 
   computeAllRegions(numRegions);
-  
+
   //reduction
   for (unsigned i = 0; i < numRegions; ++i) {
     if (m_cmdType == PimCmdEnum::REDSUM || m_cmdType == PimCmdEnum::REDSUM_RANGE) {
@@ -1474,7 +1559,7 @@ pimCmdMAC<T>::execute()
     m_regionResult.resize(numRegions, 0);
   }
   computeAllRegions(numRegions);
-  
+
   //reduction
   for (unsigned i = 0; i < numRegions; ++i) {
     if (std::is_integral_v<T> && std::is_signed_v<T>)

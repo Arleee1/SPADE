@@ -742,7 +742,7 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
   std::vector<pimObjInfo> newObjs;
   newObjs.reserve(numElementsPerCoreVertical);
   for(size_t i=0; i<numElementsPerCoreVertical; ++i) {
-    newObjs.emplace_back(m_availObjId, dataType, allocType, numElementsPerCoreHorizontal, bitsPerElement, m_device);
+    newObjs.emplace_back(m_availObjId, dataType, allocType, numCoresToAlloc * numElementsPerCoreHorizontal, bitsPerElement, m_device);
     newObjs.back().setIsGridMember(true);
     m_availObjId++;
   }

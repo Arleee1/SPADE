@@ -440,7 +440,50 @@ pimCmdCopyGrid::sanityCheck() const
 bool
 pimCmdCopyGrid::updateStats() const
 {
+  if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
+    const pimObjInfo &objDest0 = m_device->getResMgr()->getObjInfo(m_destGrid[0]);
+    uint64_t numElementsTotal = 0;
+    if (m_copyFullRange) {
+      numElementsTotal = objDest0.getNumElements() * m_destGrid.size();
+    } else {
+      uint64_t numCoresUsed = objDest0.getNumCoresUsed();
+      uint64_t numElementsX = m_idxEndX - m_idxBeginX;
+      uint64_t numElementsY = m_idxEndY - m_idxBeginY;
+      numElementsTotal = numCoresUsed * numElementsX * numElementsY;
+    }
+    unsigned bitsPerElement = objDest0.getBitsPerElement(PimBitWidth::ACTUAL);
+    pimeval::perfEnergy mPerfEnergy = pimSim::get()->getPerfEnergyModel()->getPerfEnergyForBytesTransfer(
+        PimCmdEnum::COPY_H2D, numElementsTotal * bitsPerElement / 8);
+    pimSim::get()->getStatsMgr()->recordCopyMainToDevice(numElementsTotal * bitsPerElement, mPerfEnergy);
 
+    if (m_debugCmds) {
+      std::printf("PIM-Cmd: Copied %" PRIu64 " elements of %u bits from host to PIM grid\n",
+                  numElementsTotal, bitsPerElement);
+    }
+  } else if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
+    const pimObjInfo &objSrc0 = m_device->getResMgr()->getObjInfo(m_srcGrid[0]);
+    uint64_t numElementsTotal = 0;
+    if (m_copyFullRange) {
+      numElementsTotal = objSrc0.getNumElements() * m_srcGrid.size();
+    } else {
+      uint64_t numCoresUsed = objSrc0.getNumCoresUsed();
+      uint64_t numElementsX = m_idxEndX - m_idxBeginX;
+      uint64_t numElementsY = m_idxEndY - m_idxBeginY;
+      numElementsTotal = numCoresUsed * numElementsX * numElementsY;
+    }
+    unsigned bitsPerElement = objSrc0.getBitsPerElement(PimBitWidth::ACTUAL);
+    pimeval::perfEnergy mPerfEnergy = pimSim::get()->getPerfEnergyModel()->getPerfEnergyForBytesTransfer(
+        PimCmdEnum::COPY_D2H, numElementsTotal * bitsPerElement / 8);
+    pimSim::get()->getStatsMgr()->recordCopyDeviceToMain(numElementsTotal * bitsPerElement, mPerfEnergy);
+
+    if (m_debugCmds) {
+      std::printf("PIM-Cmd: Copied %" PRIu64 " elements of %u bits from PIM grid to host\n",
+                  numElementsTotal, bitsPerElement);
+    }
+  } else {
+    assert(0);
+  }
+  return true;
 }
 
 

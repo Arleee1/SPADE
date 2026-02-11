@@ -198,7 +198,6 @@ public:
       m_numElements(numElements),
       m_bitsPerElementPadded(bitsPerElementPadded),
       m_device(device),
-      m_isBuffer(isBuffer),
       m_isGridMember(true),
       m_numCoresVertical(numCoresVertical),
       m_numCoresHorizontal(numCoresHorizontal)
@@ -235,6 +234,8 @@ public:
   unsigned getNumCoreAvailable() const { return m_numCoreAvailable; }
   unsigned getMaxElementsPerRegion() const { return m_maxElementsPerRegion; }
   unsigned getNumColsPerElem() const { return m_numColsPerElem; }
+  uint64_t getNumCoresVertical() const { return m_numCoresVertical; }
+  uint64_t getNumCoresHorizontal() const { return m_numCoresHorizontal; }
 
   void print() const;
 

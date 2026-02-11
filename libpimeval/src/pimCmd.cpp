@@ -18,6 +18,10 @@
 #include <climits>
 #include <cinttypes>         // for PRIu64, PRIx64
 
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 //! @brief  Get PIM command name from command type enum
 std::string
 pimCmd::getName(PimCmdEnum cmdType, const std::string& suffix)
@@ -362,7 +366,83 @@ pimCmdCopy::updateStats() const
 bool
 pimCmdCopyGrid::execute()
 {
+  if (!sanityCheck()) {
+    return false;
+  }
 
+  // for non-functional simulation, sync src data from simulated memory
+  if (pimSim::get()->getDeviceType() != PIM_FUNCTIONAL) {
+    if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
+      for(auto& objId : m_srcGrid) {
+        pimObjInfo &objSrc = m_device->getResMgr()->getObjInfo(objId);
+        objSrc.syncFromSimulatedMem();
+      }
+    }
+  }
+
+  if (!pimSim::get()->isAnalysisMode()) {
+    const PimObjGrid& pimGrid = [&]() {
+      if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
+        return m_destGrid;
+      } else if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
+        return m_srcGrid;
+      } else {
+        assert(0);
+      }
+    }();
+
+    const pimObjInfo& refObj = m_device->getResMgr()->getObjInfo(pimGrid[0]);
+    const uint64_t numCoresVertical = refObj.getNumCoresVertical();
+    const uint64_t numCoresHorizontal = refObj.getNumCoresHorizontal();
+    const uint64_t numCoresUsed = refObj.getNumCoresUsed();
+    const uint64_t numElementsPerCoreVertical = pimGrid.size();
+    const uint64_t numElementsPerCoreHorizontal = refObj.getNumElements() / numCoresUsed;
+    const uint64_t idxBeginX = m_copyFullRange ? 0 : m_idxBeginX;
+    const uint64_t idxEndX = m_copyFullRange ? numElementsPerCoreHorizontal : m_idxEndX;
+    const uint64_t idxBeginY = m_copyFullRange ? 0 : m_idxBeginY;
+    const uint64_t idxEndY = m_copyFullRange ? numElementsPerCoreVertical : m_idxEndY;
+    const uint64_t totalCols = numCoresHorizontal * numElementsPerCoreHorizontal;
+    const uint64_t bytesPerElement = (refObj.getBitsPerElement(PimBitWidth::HOST) + 7) / 8;
+    uint8_t* hostBytes = static_cast<uint8_t*>(m_ptr);
+
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+#endif
+    for (uint64_t coreRow = 0; coreRow < numCoresVertical; ++coreRow) {
+      for (uint64_t y = idxBeginY; y < idxEndY; ++y) {
+        pimObjInfo &objCopy = m_device->getResMgr()->getObjInfo(m_destGrid[y]);
+        for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
+          const uint64_t coreIndex = coreRow * numCoresHorizontal + coreCol;
+          const uint64_t coreStartIndex = coreIndex * numElementsPerCoreHorizontal;
+          const uint64_t destIdxBegin = coreStartIndex + idxBeginX;
+          const uint64_t destIdxEnd = coreStartIndex + idxEndX;
+          const uint64_t hostIndex = (coreRow * numElementsPerCoreVertical + y) * totalCols
+                              + (coreCol * numElementsPerCoreHorizontal + idxBeginX);
+          uint8_t* hostPtr = hostBytes + hostIndex * bytesPerElement;
+          if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
+            objCopy.copyFromHost(hostPtr, destIdxBegin, destIdxEnd);
+          } else if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
+            objCopy.copyToHost(hostPtr, destIdxBegin, destIdxEnd);
+          } else {
+            assert(0);
+          }
+        }
+      }
+    }
+  }
+
+  // for non-functional simulation, sync dest data to simulated memory
+  if (pimSim::get()->getDeviceType() != PIM_FUNCTIONAL) {
+    if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
+      for(auto& objId : m_destGrid) {
+        pimObjInfo &objDest = m_device->getResMgr()->getObjInfo(objId);
+        objDest.syncToSimulatedMem();
+      }
+    }
+  }
+
+  updateStats();
+  return true;
 }
 
 //! @brief  PIM Grid Data Copy - sanity check

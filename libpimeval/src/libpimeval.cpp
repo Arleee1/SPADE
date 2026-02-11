@@ -132,7 +132,7 @@ pimFree(PimObjId obj)
 }
 
 PimStatus
-pimFreeGrid(PimObjGrid grid)
+pimFreeGrid(PimObjGrid& grid)
 {
   bool ok = pimSim::get()->pimFreeGrid(grid);
   return ok ? PIM_OK : PIM_ERROR;
@@ -193,7 +193,7 @@ PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX,
 }
 
 //! @brief  Copy data from a PimObjGrid to a flattened 2D array in host memory
-PimStatus pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
+PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
                            uint64_t idxBeginY, uint64_t idxEndY)
 {
   bool ok = pimSim::get()->pimCopyGridToHost(srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);

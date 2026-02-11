@@ -391,13 +391,13 @@ PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX 
 //! @param idxBeginY: starting index in the Y direction (rows) to copy, per core
 //! @param idxEndY: ending index in the Y direction (rows) to copy, per core
 //! @return Success or failure
-PimStatus pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
                            uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
 
 //! @brief Frees the PimObjGrid and all associated PimObjIds
 //! @param grid: PimObjGrid allocated by pimAllocGrid
 //! @return PimStatus indicating success or failure
-PimStatus pimFreeGrid(PimObjGrid grid);
+PimStatus pimFreeGrid(PimObjGrid& grid);
 
 
 

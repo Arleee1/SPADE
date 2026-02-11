@@ -306,7 +306,7 @@ public:
                           PimAllocationStrategy allocationStrategy);
   PimObjGrid pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical);
   bool pimFree(PimObjId objId);
-  bool pimFreeGrid(PimObjGrid grid);
+  bool pimFreeGrid(PimObjGrid& grid);
   PimObjId pimCreateRangedRef(PimObjId refId, uint64_t idxBegin, uint64_t idxEnd);
   PimObjId pimCreateDualContactRef(PimObjId refId);
 

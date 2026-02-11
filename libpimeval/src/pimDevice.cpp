@@ -227,7 +227,7 @@ pimDevice::pimFree(PimObjId obj)
 }
 
 bool
-pimDevice::pimFreeGrid(PimObjGrid grid)
+pimDevice::pimFreeGrid(PimObjGrid& grid)
 {
   return m_resMgr->pimFreeGrid(grid);
 }
@@ -294,7 +294,7 @@ pimDevice::pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX
 
 //! @brief  Copy data from PimObjGrid to host
 bool
-pimDevice::pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
+pimDevice::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
                            uint64_t idxBeginY, uint64_t idxEndY)
 {
   assert(!srcGrid.empty());

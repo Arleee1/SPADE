@@ -851,7 +851,7 @@ pimResMgr::pimFree(PimObjId objId)
 
 //! @brief Free a PIM Grid object
 bool
-pimResMgr::pimFreeGrid(PimObjGrid grid)
+pimResMgr::pimFreeGrid(PimObjGrid& grid)
 {
   bool ok = true;
   for (PimObjId objId : grid) {

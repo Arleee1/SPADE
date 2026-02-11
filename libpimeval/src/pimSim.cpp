@@ -281,7 +281,7 @@ pimSim::pimFree(PimObjId obj)
 
 // @brief  Free a PimObjGrid
 bool
-pimSim::pimFreeGrid(PimObjGrid grid)
+pimSim::pimFreeGrid(PimObjGrid& grid)
 {
   pimPerfMon perfMon("pimFreeGrid");
   if (!isValidDevice()) { return false; }
@@ -353,7 +353,7 @@ pimSim::pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX, u
 
 // @brief  Copy data from a PimObjGrid to a flattened 2D array in host memory
 bool
-pimSim::pimCopyGridToHost(PimObjGrid srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
+pimSim::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
                            uint64_t idxBeginY, uint64_t idxEndY)
 {
   pimPerfMon perfMon("pimCopyGridToHost");

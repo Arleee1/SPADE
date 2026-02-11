@@ -226,6 +226,7 @@ public:
   bool isHLayout() const { return m_allocType == PIM_ALLOC_H || m_allocType == PIM_ALLOC_H1; }
   bool isLoadBalanced() const { return m_isLoadBalanced; }
   bool isBuffer() const { return m_isBuffer; }
+  bool isGridMember() const { return m_isGridMember; }
 
   const std::vector<pimRegion>& getRegions() const { return m_regions; }
   std::vector<pimRegion> getRegionsOfCore(PimCoreId coreId) const;

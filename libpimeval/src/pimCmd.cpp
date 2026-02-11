@@ -1418,12 +1418,17 @@ pimCmdRotate::execute()
     return false;
   }
 
+  pimObjInfo &objSrc = m_device->getResMgr()->getObjInfo(m_src);
+
   if (pimSim::get()->getDeviceType() != PIM_FUNCTIONAL) {
-    pimObjInfo &objSrc = m_device->getResMgr()->getObjInfo(m_src);
     objSrc.syncFromSimulatedMem();
   }
 
-  pimObjInfo& objSrc = m_device->getResMgr()->getObjInfo(m_src);
+  // disable cross region communication for grid member objects
+  if(objSrc.isGridMember()) {
+    m_useCrossRegionCommunication = false;
+  }
+
   unsigned numRegions = objSrc.getRegions().size();
   m_regionBoundary.resize(numRegions, 0);
 

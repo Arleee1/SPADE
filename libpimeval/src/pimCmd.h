@@ -28,6 +28,7 @@ enum class PimCmdEnum {
   COPY_D2D,
   COPY_GRID_H2D,
   COPY_GRID_D2H,
+  COPY_GRID_HALO,
   COPY_O2O, // This copies data between two associated memory objects. Hence, will be treated as PIM command not data copy
   // Functional 1-operand
   ABS,
@@ -234,6 +235,23 @@ protected:
   uint64_t m_idxBeginY = 0;
   uint64_t m_idxEndY = 0;
   bool m_copyFullRange = false;
+};
+
+class pimCmdCopyHalo : public pimCmd
+{
+public:
+  pimCmdCopyHalo(PimCopyEnum copyType, PimObjGrid& srcGrid, uint64_t numHalo)
+    : pimCmd(PimCmdEnum::COPY_GRID_HALO), m_copyType(copyType), m_srcGrid(srcGrid), m_numHalo(numHalo) {}
+
+  virtual ~pimCmdCopyHalo() {}
+  virtual bool execute() override;
+  virtual bool sanityCheck() const override;
+  virtual bool updateStats() const override;
+
+private:
+  PimCopyEnum m_copyType;
+  PimObjGrid m_srcGrid;
+  uint64_t m_numHalo = 0;
 };
 
 //! @class  pimCmdFunc1

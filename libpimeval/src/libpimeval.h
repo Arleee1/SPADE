@@ -399,6 +399,11 @@ PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX 
 //! @return PimStatus indicating success or failure
 PimStatus pimFreeGrid(PimObjGrid& grid);
 
+//! @brief Copies adjacent elements between cores in a PimObjGrid to enable communication between PIM cores
+//! @param srcGrid: PimObjGrid allocated by pimAllocGrid
+//! @param numHalo: number of adjacent elements to copy between cores (e.g., numHalo=1 for 1 halo element)
+//! @return PimStatus indicating success or failure
+PimStatus pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo);
 
 
 #endif

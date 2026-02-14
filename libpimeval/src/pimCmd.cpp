@@ -32,6 +32,7 @@ pimCmd::getName(PimCmdEnum cmdType, const std::string& suffix)
     { PimCmdEnum::COPY_D2H, "copy_d2h" },
     { PimCmdEnum::COPY_D2D, "copy_d2d" },
     { PimCmdEnum::COPY_O2O, "copy_o2o" },
+    { PimCmdEnum::COPY_GRID_HALO, "copy_grid_halo" },
     { PimCmdEnum::ABS, "abs" },
     { PimCmdEnum::POPCOUNT, "popcount" },
     { PimCmdEnum::SHIFT_BITS_R, "shift_bits_r" },
@@ -563,6 +564,105 @@ pimCmdCopyGrid::updateStats() const
   } else {
     assert(0);
   }
+  return true;
+}
+
+//! @brief PIM CMD: Copy Grid Halo
+bool
+pimCmdCopyHalo::execute()
+{
+  if (m_debugCmds) {
+    std::printf("PIM-Cmd: %s (halo radius: %" PRIu64 ")\n", getName().c_str(), m_numHalo);
+  }
+
+  if (!sanityCheck()) {
+    return false;
+  }
+
+  pimResMgr* resMgr = m_device->getResMgr();
+
+  const pimObjInfo& refObj = resMgr->getObjInfo(m_srcGrid[0]);
+  const uint64_t numCoresVertical = refObj.getNumCoresVertical();
+  const uint64_t numCoresHorizontal = refObj.getNumCoresHorizontal();
+  const uint64_t totalCores = numCoresVertical * numCoresHorizontal;
+  const uint64_t numElementsPerCoreVertical = m_srcGrid.size();
+  const uint64_t numElementsPerCoreHorizontal = refObj.getNumElements() / totalCores;
+
+  if (pimSim::get()->getDeviceType() != PIM_FUNCTIONAL) {
+    for (PimObjId objId : m_srcGrid) {
+      resMgr->getObjInfo(objId).syncFromSimulatedMem();
+    }
+  }
+
+  if (!pimSim::get()->isAnalysisMode()) {
+    auto copyRectangle = [&](uint64_t srcCoreIndex, uint64_t destCoreIndex, uint64_t srcX, uint64_t srcY, uint64_t destX, uint64_t destY, uint64_t width, uint64_t height) {
+      for(uint64_t y = 0; y < height; ++y) {
+        const pimObjInfo& srcObj = resMgr->getObjInfo(m_srcGrid[srcY + y]);
+        pimObjInfo& destObj = resMgr->getObjInfo(m_srcGrid[destY + y]);
+        for (uint64_t x = 0; x < width; ++x) {
+          uint64_t bits = srcObj.getElementBits(srcCoreIndex * numElementsPerCoreHorizontal + srcX + x);
+          destObj.setElementBits(destCoreIndex * numElementsPerCoreHorizontal + destX + x, bits);
+        }
+      }
+    };
+
+    for(uint64_t coreY = 0; coreY < numCoresVertical; ++coreY) {
+      for(uint64_t coreX = 0; coreX < numCoresHorizontal; ++coreX) {
+        const uint64_t coreIndex = coreY * numCoresHorizontal + coreX;
+        if (coreX > 0) {
+          copyRectangle(coreIndex - 1, coreIndex, numElementsPerCoreHorizontal - 2*m_numHalo, m_numHalo, 0, m_numHalo, m_numHalo, numElementsPerCoreVertical - 2*m_numHalo);
+          copyRectangle(coreIndex, coreIndex - 1, m_numHalo, m_numHalo, numElementsPerCoreHorizontal - m_numHalo, m_numHalo, m_numHalo, numElementsPerCoreVertical - 2*m_numHalo);
+        }
+        if (coreY > 0) {
+          copyRectangle(coreIndex - numCoresHorizontal, coreIndex, m_numHalo, numElementsPerCoreVertical - 2*m_numHalo, m_numHalo, 0, numElementsPerCoreHorizontal - 2*m_numHalo, m_numHalo);
+          copyRectangle(coreIndex, coreIndex - numCoresHorizontal, m_numHalo, m_numHalo, m_numHalo, numElementsPerCoreVertical - m_numHalo, numElementsPerCoreHorizontal - 2*m_numHalo, m_numHalo);
+        }
+        if (coreX > 0 && coreY > 0) {
+          copyRectangle(coreIndex - numCoresHorizontal - 1, coreIndex, numElementsPerCoreHorizontal - 2*m_numHalo, numElementsPerCoreVertical - 2*m_numHalo, 0, 0, m_numHalo, m_numHalo);
+          copyRectangle(coreIndex, coreIndex - numCoresHorizontal - 1, m_numHalo, m_numHalo, numElementsPerCoreHorizontal - m_numHalo, numElementsPerCoreVertical - m_numHalo, m_numHalo, m_numHalo);
+          copyRectangle(coreIndex - numCoresHorizontal, coreIndex - 1, m_numHalo, numElementsPerCoreVertical - 2*m_numHalo, numElementsPerCoreHorizontal - m_numHalo, 0, m_numHalo, m_numHalo);
+          copyRectangle(coreIndex - 1, coreIndex - numCoresHorizontal, numElementsPerCoreHorizontal - 2*m_numHalo, m_numHalo, 0, numElementsPerCoreVertical - m_numHalo, m_numHalo, m_numHalo);
+        }
+      }
+    }
+  }
+
+  if (pimSim::get()->getDeviceType() != PIM_FUNCTIONAL) {
+    for (PimObjId objId : m_srcGrid) {
+      resMgr->getObjInfo(objId).syncToSimulatedMem();
+    }
+  }
+
+  updateStats();
+  return true;
+}
+//! @brief PIM CMD: Copy Grid Halo - sanity check
+bool
+pimCmdCopyHalo::sanityCheck() const
+{
+  pimResMgr* resMgr = m_device->getResMgr();
+
+  if (!resMgr->isValidGrid(m_srcGrid)) {
+    std::printf("PIM-Error: Invalid PIM Grid for halo copy\n");
+    return false;
+  }
+
+  //! @todo grid: potentially add a helper for this
+  const uint64_t numCores = resMgr->getObjInfo(m_srcGrid[0]).getNumCoresHorizontal() * resMgr->getObjInfo(m_srcGrid[0]).getNumCoresVertical();
+  const uint64_t numElementsPerCoreHorizontal = resMgr->getObjInfo(m_srcGrid[0]).getNumElements() / numCores;
+
+  if(m_srcGrid.size() < 3*m_numHalo || numElementsPerCoreHorizontal < 3*m_numHalo) {
+    std::printf("PIM-Error: Halo size is too small for grid dimensions\n");
+    return false;
+  }
+
+  return true;
+}
+//! @brief PIM CMD: Copy Grid Halo - update stats
+bool
+pimCmdCopyHalo::updateStats() const
+{
+  //! @todo grid: implement
   return true;
 }
 

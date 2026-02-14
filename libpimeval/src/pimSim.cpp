@@ -361,6 +361,14 @@ pimSim::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX, u
   return m_device->pimCopyGridToHost(srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);
 }
 
+bool
+pimSim::pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo)
+{
+  pimPerfMon perfMon("pimCopyGridHalo");
+  if (!isValidDevice()) { return false; }
+  return m_device->pimCopyGridHalo(srcGrid, numHalo);
+}
+
 // @brief  Copy data from PIM device to device within a range
 bool
 pimSim::pimCopyDeviceToDevice(PimObjId src, PimObjId dest, uint64_t idxBegin, uint64_t idxEnd)

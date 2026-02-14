@@ -200,6 +200,12 @@ PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX,
   return ok ? PIM_OK : PIM_ERROR;
 }
 
+PimStatus pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo)
+{
+  bool ok = pimSim::get()->pimCopyGridHalo(srcGrid, numHalo);
+  return ok ? PIM_OK : PIM_ERROR;
+}
+
 //! @brief  Copy data from PIM device to device for a range of elements within the PIM object
 PimStatus
 pimCopyDeviceToDevice(PimObjId src, PimObjId dest, uint64_t idxBegin, uint64_t idxEnd)

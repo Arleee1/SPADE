@@ -82,6 +82,7 @@ public:
                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
   bool pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
                            uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
+  bool pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo);
   bool pimCopyDeviceToDevice(PimObjId src, PimObjId dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
   bool pimCopyObjectToObject(PimObjId src, PimObjId dest);
   bool pimConvertType(PimObjId src, PimObjId dest);

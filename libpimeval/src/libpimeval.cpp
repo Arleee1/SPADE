@@ -110,10 +110,12 @@ pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
                           PimAllocationStrategy allocationStrategy)
 {
-  return pimSim::get()->pimAllocGrid(allocType, dataType,
+  PimObjGrid grid = pimSim::get()->pimAllocGrid(allocType, dataType,
                                       numCoresVertical, numCoresHorizontal,
                                       numElementsPerCoreVertical, numElementsPerCoreHorizontal,
                                       allocationStrategy);
+  std::fflush(stdout); // flush errors
+  return grid;
 }
 
 //! @brief  Allocate more PimObjs associated with an existing PimObjId

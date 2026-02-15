@@ -683,7 +683,7 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
     return {};
   }
 
-  unsigned numCoresToAlloc = numCoresVertical * numElementsPerCoreHorizontal;
+  unsigned numCoresToAlloc = numCoresVertical * numCoresHorizontal;
   if (numCoresToAlloc == 0) {
     printf("PIM-Error: pimAllocGrid: Invalid input parameter: 0 cores\n");
     return {};
@@ -713,15 +713,15 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
     rowsPerCorePerObjToAlloc = 1;
     numColsPerElem = bitsPerElement;
   } else {
-    printf("PIM-Error: pimAlloc: Unsupported allocation type %s\n",
+    printf("PIM-Error: pimAllocGrid: Unsupported allocation type %s\n",
            pimUtils::pimAllocEnumToStr(allocType).c_str());
     return {};
   }
 
   if (m_debugAlloc) {
-    printf("PIM-Debug: pimAlloc: Allocate %lu regions among %u cores\n",
+    printf("PIM-Debug: pimAllocGrid: Allocate %lu regions among %u cores\n",
            numElementsPerCoreVertical * numCoresToAlloc, numCores);
-    printf("PIM-Debug: pimAlloc: Each region has %u rows x %u cols with %lu elements\n",
+    printf("PIM-Debug: pimAllocGrid: Each region has %u rows x %u cols with %lu elements\n",
            rowsPerCorePerObjToAlloc, colsPerCoreToAlloc, numElementsPerCoreHorizontal);
   }
 

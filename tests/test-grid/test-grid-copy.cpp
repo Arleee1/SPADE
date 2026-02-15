@@ -16,6 +16,8 @@
 
 void testGridCopy(PimDeviceEnum deviceType)
 {
+  std::cout << "Testing grid copy for device type " << deviceType << std::endl;
+
   PimStatus status;
 
   unsigned numRanks = 1;
@@ -76,11 +78,11 @@ int main()
 {
   std::cout << "PIM Regression Test: Grid copy" << std::endl;
 
+  testGridCopy(PIM_DEVICE_BANK_LEVEL);
+
   testGridCopy(PIM_DEVICE_BITSIMD_V);
 
   testGridCopy(PIM_DEVICE_FULCRUM);
-
-  testGridCopy(PIM_DEVICE_BANK_LEVEL);
 
   return 0;
 }

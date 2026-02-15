@@ -411,7 +411,7 @@ pimCmdCopyGrid::execute()
 #endif
     for (uint64_t coreRow = 0; coreRow < numCoresVertical; ++coreRow) {
       for (uint64_t y = idxBeginY; y < idxEndY; ++y) {
-        pimObjInfo &objCopy = m_device->getResMgr()->getObjInfo(m_destGrid[y]);
+        pimObjInfo &objCopy = m_device->getResMgr()->getObjInfo(pimGrid[y]);
         for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
           const uint64_t coreIndex = coreRow * numCoresHorizontal + coreCol;
           const uint64_t coreStartIndex = coreIndex * numElementsPerCoreHorizontal;
@@ -471,7 +471,7 @@ pimCmdCopyGrid::sanityCheck() const
     numElementsPerCoreVertical = m_destGrid.size();
     break;
   }
-  case PimCmdEnum::COPY_D2H:
+  case PimCmdEnum::COPY_GRID_D2H:
   {
     if (!resMgr->isValidGrid(m_srcGrid)) {
       std::printf("PIM-Error: Invalid PIM grid as copy source\n");
@@ -488,6 +488,8 @@ pimCmdCopyGrid::sanityCheck() const
     break;
   }
   default:
+    //print error for invalid command type
+    std::printf("PIM-Error: Invalid PIM command type for grid copy, command type: %d\n", static_cast<int>(m_cmdType));
     assert(0);
   }
 

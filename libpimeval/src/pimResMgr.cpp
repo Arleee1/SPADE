@@ -733,9 +733,13 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
   //! @todo grid: use allocation strategy when selecting core
   unsigned lastRows = m_coreUsage.at(sortedCoreId[numCoresToAlloc-1])->getNumRowsPerCore();
   unsigned lastUsed = m_coreUsage.at(sortedCoreId[numCoresToAlloc-1])->getTotRowsInUse();
+  if(lastUsed + rowsPerCoreToAlloc > lastRows) {
+    printf("PIM-Error: pimAllocGrid: Attempting to allocate too many rows (%u requested, %u available)\n", rowsPerCoreToAlloc, lastRows - lastUsed);
+    return {};
+  }
   unsigned numCols = m_device->getNumCols();
-  if(lastUsed + rowsPerCoreToAlloc > lastRows || colsPerCoreToAlloc > numCols) {
-    printf("PIM-Error: pimAllocGrid: Not enough available PIM cores\n");
+  if(colsPerCoreToAlloc > numCols) {
+    printf("PIM-Error: pimAllocGrid: Attempting to allocate too many columns (%u requested, %u available)\n", colsPerCoreToAlloc, numCols);
     return {};
   }
 

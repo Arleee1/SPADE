@@ -6,14 +6,14 @@
 PROJ_ROOT = ../..
 include ${PROJ_ROOT}/Makefile.common
 
-EXEC := test-grid.out
-SRC := test-grid.cpp
+SRCS := test-grid-copy.cpp
+EXECS := $(SRCS:.cpp=.out)
 
-debug perf dramsim3_integ: $(EXEC)
+debug perf dramsim3_integ: $(EXECS)
 
-$(EXEC): $(SRC) $(DEPS)
+%.out: %.cpp $(DEPS)
 	$(CXX) $< $(CXXFLAGS) -o $@
 
 clean:
-	rm -rf $(EXEC) *.dSYM
+	rm -rf $(EXECS) *.dSYM
 

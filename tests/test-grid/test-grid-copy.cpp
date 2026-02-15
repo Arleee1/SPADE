@@ -1,4 +1,4 @@
-// Test: Grid
+// Test: Grid Copy
 // Copyright (c) 2026 University of Virginia
 // This file is licensed under the MIT License.
 // See the LICENSE file in the root of this repository for more details.
@@ -18,7 +18,6 @@ void testGridCopy(PimDeviceEnum deviceType)
 {
   PimStatus status;
 
-  // 8GB capacity
   unsigned numRanks = 1;
   unsigned numBankPerRank = 128; // 8 chips * 16 banks
   unsigned numSubarrayPerBank = 32;
@@ -32,7 +31,6 @@ void testGridCopy(PimDeviceEnum deviceType)
   const uint64_t srcHeight = 1024;
   const uint64_t tileWidth = 256;
   const uint64_t tileHeight = 128;
-  // const uint64_t numIterations = 10;
 
   const uint64_t numCoresVertical = srcHeight / tileHeight;
   const uint64_t numCoresHorizontal = srcWidth / tileWidth;
@@ -40,10 +38,9 @@ void testGridCopy(PimDeviceEnum deviceType)
   const size_t numElements = srcWidth * srcHeight;
 
 
-  float* src = (float*) std::malloc(numElements * sizeof(float)); // Example source data
-  float* dest = (float*) std::malloc(numElements * sizeof(float)); // Example destination data
+  float* src = (float*) std::malloc(numElements * sizeof(float));
+  float* dest = (float*) std::malloc(numElements * sizeof(float));
 
-  // 4x4 grid of cores, each core with 256x256 elements plus 1-element halo on each side
   PimObjGrid grid = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, numCoresVertical, numCoresHorizontal,
                                   tileHeight, tileWidth, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
   assert(!grid.empty());
@@ -52,9 +49,11 @@ void testGridCopy(PimDeviceEnum deviceType)
   status = pimCopyHostToGrid(src, grid);
   assert(status == PIM_OK);
 
+  // Copy back to host
   status = pimCopyGridToHost(grid, dest);
   assert(status == PIM_OK);
 
+  // Verify results
   for(uint64_t i = 0; i < numElements; ++i) {
     if (src[i] != dest[i]) {
       std::printf("ERROR: found mismatch at idx %" PRIu64 ": src %f dest %f\n", i, src[i], dest[i]);
@@ -69,6 +68,8 @@ void testGridCopy(PimDeviceEnum deviceType)
 
   pimShowStats();
   pimDeleteDevice();
+
+  std::fflush(stdout);
 }
 
 int main()
@@ -78,6 +79,8 @@ int main()
   testGridCopy(PIM_DEVICE_BITSIMD_V);
 
   testGridCopy(PIM_DEVICE_FULCRUM);
+
+  testGridCopy(PIM_DEVICE_BANK_LEVEL);
 
   return 0;
 }

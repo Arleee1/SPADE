@@ -45,6 +45,11 @@ bool testGridCopy(PimDeviceEnum deviceType)
   float* src = (float*) std::malloc(numElements * sizeof(float));
   float* dest = (float*) std::malloc(numElements * sizeof(float));
 
+  for(uint64_t i = 0; i < numElements; ++i) {
+    src[i] = static_cast<float>(i);
+    dest[i] = 0.0f;
+  }
+
   PimObjGrid grid = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, numCoresVertical, numCoresHorizontal,
                                   tileHeight, tileWidth, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
   assert(!grid.empty());

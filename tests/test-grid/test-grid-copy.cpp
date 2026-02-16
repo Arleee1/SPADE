@@ -14,9 +14,11 @@
 #include <cstdio>
 
 
-void testGridCopy(PimDeviceEnum deviceType)
+bool testGridCopy(PimDeviceEnum deviceType)
 {
   std::cout << "Testing grid copy for device type " << deviceType << std::endl;
+
+  bool ok = true;
 
   PimStatus status;
 
@@ -59,7 +61,8 @@ void testGridCopy(PimDeviceEnum deviceType)
   for(uint64_t i = 0; i < numElements; ++i) {
     if (src[i] != dest[i]) {
       std::printf("ERROR: found mismatch at idx %" PRIu64 ": src %f dest %f\n", i, src[i], dest[i]);
-      assert(false);
+      ok = false;
+      break;
     }
   }
 
@@ -72,17 +75,22 @@ void testGridCopy(PimDeviceEnum deviceType)
   pimDeleteDevice();
 
   std::fflush(stdout);
+  return ok;
 }
 
 int main()
 {
   std::cout << "PIM Regression Test: Grid copy" << std::endl;
 
-  testGridCopy(PIM_DEVICE_BANK_LEVEL);
+  bool ok = true;
 
-  testGridCopy(PIM_DEVICE_BITSIMD_V);
+  ok &= testGridCopy(PIM_DEVICE_BANK_LEVEL);
 
-  testGridCopy(PIM_DEVICE_FULCRUM);
+  ok &= testGridCopy(PIM_DEVICE_BITSIMD_V);
+
+  ok &= testGridCopy(PIM_DEVICE_FULCRUM);
+
+  std::cout << "Grid Copy Test " << (ok ? "PASSED" : "FAILED") << std::endl;
 
   return 0;
 }

@@ -6,7 +6,7 @@
 PROJ_ROOT = ../..
 include ${PROJ_ROOT}/Makefile.common
 
-SRCS := test-grid-copy.cpp
+SRCS := test-grid-copy.cpp test-grid-ops.cpp
 EXECS := $(SRCS:.cpp=.out)
 
 debug perf dramsim3_integ: $(EXECS)

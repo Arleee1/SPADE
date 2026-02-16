@@ -794,6 +794,11 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
     if(newObj.isValid()) {
       objIds[i] = newObj.getObjId();
       newObj.finalize();
+
+      // Associate all objects with first
+      if(i != 0) {
+        newObj.setAssocObjId(objIds[0]);
+      }
       m_objMap.insert(std::make_pair(newObj.getObjId(), newObj));
     }
   }

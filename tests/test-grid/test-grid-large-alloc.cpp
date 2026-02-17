@@ -18,6 +18,7 @@ bool testGridLargeAlloc(PimDeviceEnum deviceType,
                         uint64_t extraCoresVertical = 0, uint64_t extraCoresHorizontal = 0,
                         uint64_t extraElementsPerCoreVertical = 0, uint64_t extraElementsPerCoreHorizontal = 0)
 {
+  //! @todo grid: currently too slow
   std::cout << "Testing grid large alloc for device type " << deviceType << std::endl;
   const bool extra = extraCoresVertical > 0 || extraCoresHorizontal > 0 || extraElementsPerCoreVertical > 0 || extraElementsPerCoreHorizontal > 0;
   if (extra) {

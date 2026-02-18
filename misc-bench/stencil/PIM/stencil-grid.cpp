@@ -296,7 +296,9 @@ void stencilCpu(std::span<float> &src, std::span<float> &dst, const uint64_t ite
     const uint64_t endY = height - startY;
     const uint64_t startX = radius*iter;
     const uint64_t endX = width - startX;
-    #pragma omp parallel for collapse(2)
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+#endif
     for(uint64_t gridY=startY; gridY<endY; ++gridY) {
       for(uint64_t gridX=startX; gridX<endX; ++gridX) {
         float resCPU = 0.0f;
@@ -326,8 +328,9 @@ int main(int argc, char* argv[])
   if (params.inputFile == nullptr)
   {
     // Fill in random grid
-
-    #pragma omp parallel
+#if defined(_OPENMP)
+#pragma omp parallel
+#endif
     {
       constexpr uint32_t baseSeed = 12345u;
       uint32_t threadSeed = baseSeed;
@@ -336,8 +339,9 @@ int main(int argc, char* argv[])
     #endif
       std::mt19937 gen(threadSeed);
       std::uniform_real_distribution<float> dist(0.0f, 10000.0f);
-
-      #pragma omp for
+#if defined(_OPENMP)
+#pragma omp for
+#endif
       for(size_t i=0; i<params.gridHeight; ++i) {
         for(size_t j=0; j<params.gridWidth; ++j) {
           x_[i * params.gridWidth + j] = static_cast<float>(dist(gen));
@@ -403,14 +407,17 @@ int main(int argc, char* argv[])
     const uint64_t endX = params.gridWidth - startX;
 
     std::cout << std::fixed << std::setprecision(10);
-
-    #pragma omp parallel for collapse(2)
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+#endif
     for(uint64_t gridY=startY; gridY<endY; ++gridY) {
       for(uint64_t gridX=startX; gridX<endX; ++gridX) {
         constexpr float acceptableDelta = 0.1f;
         if (std::abs(cpuY[gridY * params.gridWidth + gridX] - y[gridY * params.gridWidth + gridX]) > acceptableDelta)
         {
-          #pragma omp critical
+#if defined(_OPENMP)
+#pragma omp critical
+#endif
           {
             std::cout << "Wrong answer: " << y[gridY * params.gridWidth + gridX] << " (expected " << cpuY[gridY * params.gridWidth + gridX] << ") at position (" << gridX << ", " << gridY << ")" << std::endl;
             ok = false;

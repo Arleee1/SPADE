@@ -26,7 +26,9 @@ using namespace std;
 void getVector(uint64_t vectorLength, std::vector<int> &srcVector)
 {
   srcVector.resize(vectorLength);
+#if defined(_OPENMP)
 #pragma omp parallel for
+#endif
   for (uint64_t i = 0; i < vectorLength; ++i)
   {
     srcVector[i] = i % MAX_NUMBER;
@@ -40,7 +42,9 @@ void getVectorFP32(uint64_t vectorLength, std::vector<float> &srcVector, bool no
   std::uniform_real_distribution<> dist(-1e10, 1e10);
 
   srcVector.resize(vectorLength);
-  #pragma omp parallel for
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
   for (uint64_t i = 0; i < vectorLength; ++i) {
     float val = 0.0;
     do {
@@ -53,7 +57,9 @@ void getVectorFP32(uint64_t vectorLength, std::vector<float> &srcVector, bool no
 void getMatrix(int row, int column, int padding, std::vector<std::vector<int>> &inputMatrix)
 {
   inputMatrix.resize(row + 2 * padding, std::vector<int>(column + 2 * padding, 0));
+#if defined(_OPENMP)
 #pragma omp parallel for
+#endif
   for (int i = padding; i < row + padding; ++i)
   {
     for (int j = padding; j < column + padding; ++j)
@@ -66,7 +72,9 @@ void getMatrix(int row, int column, int padding, std::vector<std::vector<int>> &
 void addPadding(int row, int column, int padding, std::vector<std::vector<int>> &inputMatrix, std::vector<std::vector<int>> &resultMatrix)
 {
   resultMatrix.resize(row + 2 * padding, std::vector<int>(column + 2 * padding, 0));
+#if defined(_OPENMP)
 #pragma omp parallel for
+#endif
   for (int i = 0; i < row; ++i)
   {
     for (int j = 0; j < column; ++j)
@@ -121,18 +129,18 @@ bool createDevice(const char *configFile)
 }
 
 // Function to print the dimensions of a 2D matrix
-inline void printMatrixDimensions (std::vector<std::vector<int>> &inputMatrix) {     
-  std::cout << inputMatrix.size() << " x " 
-            << inputMatrix[0].size() 
+inline void printMatrixDimensions (std::vector<std::vector<int>> &inputMatrix) {
+  std::cout << inputMatrix.size() << " x "
+            << inputMatrix[0].size()
             << std::endl;
 }
 
 // Function to print the dimensions of a 3D matrix
 inline void printMatrixDimensions (std::vector<std::vector<std::vector<int>>> &inputMatrix) {
-  std::cout << inputMatrix.size() << " x " 
-            << inputMatrix[0].size() << " x " 
-            << inputMatrix[0][0].size() 
-            << std::endl;   
+  std::cout << inputMatrix.size() << " x "
+            << inputMatrix[0].size() << " x "
+            << inputMatrix[0][0].size()
+            << std::endl;
 }
 
 // Function to print a vector

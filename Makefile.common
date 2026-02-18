@@ -4,7 +4,7 @@
 # See the LICENSE file in the root of this repository for more details.
 
 CXX := g++
-CXXFLAGS := -std=c++17 -Wall
+CXXFLAGS := -std=c++20 -Wall
 
 # Setup libpimeval library
 PROJ_ROOT ?= .

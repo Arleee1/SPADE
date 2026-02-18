@@ -24,93 +24,6 @@
 #include "util.h"
 #include "libpimeval.h"
 
-void saveToFile(const char* filename, const float* data, uint64_t numCores, uint64_t numCoresHorizontal, uint64_t tileWidth, uint64_t tileHeight) {
-  assert(numCoresHorizontal > 0);
-  assert(numCores % numCoresHorizontal == 0);
-  const uint64_t width = numCoresHorizontal * tileWidth;
-  const uint64_t numCoreRows = numCores / numCoresHorizontal;
-
-  FILE* file = std::fopen(filename, "w");
-  if (!file) {
-    std::perror("Failed to open file");
-    return;
-  }
-
-  for (uint64_t coreRow = 0; coreRow < numCoreRows; ++coreRow) {
-    for (uint64_t y = 0; y < tileHeight; ++y) {
-      const uint64_t srcY = coreRow * tileHeight + y;
-      for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
-        const uint64_t startX = coreCol * tileWidth;
-        const uint64_t endX = startX + tileWidth;
-        for (uint64_t x = startX; x < endX; ++x) {
-          const float value = data[srcY * width + x];
-          std::fprintf(file, "%07.2f ", value);
-        }
-        if (coreCol + 1 < numCoresHorizontal) {
-          std::fprintf(file, "\t\t");
-        }
-      }
-      std::fprintf(file, "\n");
-    }
-
-    if (coreRow + 1 < numCoreRows) {
-      std::fprintf(file, "\n\n");
-    }
-  }
-
-  std::fclose(file);
-}
-
-void savePimGridToFile(const char* filename, PimObjGrid& grid, uint64_t numCores, uint64_t numCoresHorizontal, uint64_t tileWidth, uint64_t tileHeight) {
-  assert(numCoresHorizontal > 0);
-  assert(numCores % numCoresHorizontal == 0);
-  const uint64_t width = numCores * tileWidth;
-  const uint64_t numCoreRows = numCores / numCoresHorizontal;
-  const uint64_t rowsToPrint = std::min<uint64_t>(tileHeight, grid.size());
-
-  FILE* file = std::fopen(filename, "w");
-  if (!file) {
-    std::perror("Failed to open file");
-    return;
-  }
-
-  if (rowsToPrint < tileHeight) {
-    std::fprintf(file, "Requested tileHeight (%llu) exceeds available grid rows (%llu).\n",
-                 static_cast<unsigned long long>(tileHeight),
-                 static_cast<unsigned long long>(grid.size()));
-  }
-
-  std::vector<float> tmp(width);
-  for (uint64_t coreRow = 0; coreRow < numCoreRows; ++coreRow) {
-    for (uint64_t y = 0; y < rowsToPrint; ++y) {
-      pimCopyDeviceToHost(grid[y], tmp.data());
-
-      const uint64_t firstCoreInRow = coreRow * numCoresHorizontal;
-      for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
-        const uint64_t coreIdx = firstCoreInRow + coreCol;
-        const uint64_t startX = coreIdx * tileWidth;
-        const uint64_t endX = startX + tileWidth;
-
-        for (uint64_t x = startX; x < endX; ++x) {
-          const float value = tmp[x];
-          std::fprintf(file, "%07.2f ", value);
-        }
-
-        if (coreCol + 1 < numCoresHorizontal) {
-          std::fprintf(file, "\t\t");
-        }
-      }
-
-      std::fprintf(file, "\n");
-    }
-
-    if (coreRow + 1 < numCoreRows) {
-      std::fprintf(file, "\n\n");
-    }
-  }
-
-  std::fclose(file);
-}
 
 // Params ---------------------------------------------------------------------
 typedef struct Params
@@ -310,7 +223,7 @@ void computeStencilChunkIteration(std::span<PimObjId> workingPimMemory, std::spa
     }
   }
 }
-//stencil(x, y, numAssociable, numElementsHorizontal, params.iterations, params.radius);
+
 void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uint64_t iterations, const uint64_t radius) {
   assert(srcHost.size() == dstHost.size());
 
@@ -339,7 +252,6 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   PimStatus status = pimCopyHostToGrid(srcHost.data(), grid, radius, tileWidth + radius, radius, tileHeight + radius);
   assert(status == PIM_OK);
 
-//   std::span<PimObjId> workingPimMemory, std::span<PimObjId> rowsInSumCircularQueue, PimObjId tmpPim, PimObjId runningSum
   auto it = grid.begin();
   std::span<PimObjId> workingPimMemory(it, it + tileHeight + 2*radius);
   it += tileHeight + 2*radius;
@@ -353,24 +265,16 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   //! @todo grid: need to remove
   std::vector<PimObjId> workingPimMemoryVec(workingPimMemory.begin(), workingPimMemory.end());
 
-  savePimGridToFile("before_halo.txt", grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
-
   status = pimCopyGridHalo(workingPimMemoryVec, radius);
   assert(status == PIM_OK);
 
-  savePimGridToFile("before_stencil.txt", grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
-
   for(size_t iter = 0; iter < iterations; ++iter) {
     computeStencilChunkIteration(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
-    savePimGridToFile(("after_stencil_iter_" + std::to_string(iter) + ".txt").c_str(), grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
       status = pimCopyGridHalo(workingPimMemoryVec, radius);
       assert(status == PIM_OK);
-      savePimGridToFile(("after_copy_halo_iter_" + std::to_string(iter) + ".txt").c_str(), grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
     }
   }
-
-  savePimGridToFile("after_stencil.txt", grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
 
   // Only copy back the non-halo region
   status = pimCopyGridToHost(grid, dstHost.data(), radius, tileWidth + radius, radius, tileHeight + radius);
@@ -382,135 +286,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   assert(status == PIM_OK);
 }
 
-// //! @brief  Computes a stencil pattern over a 2d array
-// //! @param[in]  srcHost  The input stencil grid
-// //! @param[out]  dstHost  The resultant stencil grid
-// //! @param[in]  numAssociable  Number of float 32 PIM objects that can be associated with each other
-// //! @param[in]  numElementsHorizontal  Number of float 32 PIM objects that can be placed in a PIM row without creating shifting issues
-// //! @param[in]  iterations  Number of iterations to run the stencil pattern for
-// //! @param[in]  radius  The radius of the stencil pattern
-// void stencil(const std::vector<std::vector<float>> &srcHost, std::vector<std::vector<float>> &dstHost, const uint64_t numAssociable,
-//               const uint64_t numElementsHorizontal, const uint64_t iterations, const uint64_t radius) {
-
-//   assert(!srcHost.empty());
-//   assert(!srcHost[0].empty());
-//   assert(srcHost.size() == dstHost.size());
-//   assert(srcHost[0].size() == dstHost[0].size());
-
-//   std::vector<std::vector<float>> tmpGrid;
-//   tmpGrid.resize(srcHost.size(), std::vector<float>(srcHost[0].size()));
-
-//   const uint64_t gridWidth = srcHost[0].size();
-
-//   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
-//   const float stencilAreaFloat = 1.0f / static_cast<float>(stencilAreaInt);
-//   uint32_t tmp;
-//   std::memcpy(&tmp, &stencilAreaFloat, sizeof(float));
-//   const uint64_t stencilAreaToMultiplyPim = static_cast<uint64_t>(tmp);
-
-//   // Model assumes that only a finite number of stencil iterations can be computed on the PIM device before transferring back to the host
-//   // In chunked stencil implementations (with cross region computations) this limit is both vertical and horizontal
-//   // In non-chunked stencil implementations, this limit is purely vertical
-//   // TODO: Figure out what to make this number
-//   constexpr uint64_t maxIterationsPerPim = 5; // TODO: what should this number be?
-
-//   uint64_t pimAllocWidth;
-// //   if constexpr (isHorizontallyChunked) {
-// //     // Represents the number of elements on the left/right that aren't part of the final result for a horizontally chunked implementation. Without data movement, each iteration causes <radius> number of elements on each side to no longer be valid.
-// //     const uint64_t maxInvalidHorizontal = radius * std::min(maxIterationsPerPim, iterations);
-// //     const uint64_t maxUsableHorizontal = numElementsHorizontal - 2*maxInvalidHorizontal;
-// //     const uint64_t maxChunksHorizontal = (gridWidth + maxUsableHorizontal - 1) / maxUsableHorizontal;
-// //     pimAllocWidth = numElementsHorizontal * maxChunksHorizontal;
-// //   } else {
-// //     pimAllocWidth = gridWidth;
-// //   }
-//   pimAllocWidth = gridWidth;
-
-//   PimObjId tmpPim = pimAlloc(PIM_ALLOC_AUTO, pimAllocWidth, PIM_FP32);
-//   assert(tmpPim != -1);
-//   PimObjId runningSum = pimAllocAssociated(tmpPim, PIM_FP32);
-//   assert(runningSum != -1);
-
-//   std::vector<PimObjId> rowsInSumCircularQueue(2*radius+1);
-//   for(uint64_t i=0; i<rowsInSumCircularQueue.size(); ++i) {
-//     rowsInSumCircularQueue[i] = pimAllocAssociated(tmpPim, PIM_FP32);
-//     assert(rowsInSumCircularQueue[i] != -1);
-//   }
-
-//   std::vector<PimObjId> workingPimMemory(numAssociable - (rowsInSumCircularQueue.size() + 2));
-//   for(uint64_t i=0; i<workingPimMemory.size(); ++i) {
-//     workingPimMemory[i] = pimAllocAssociated(tmpPim, PIM_FP32);
-//     assert(workingPimMemory[i] != -1);
-//   }
-
-//   const uint64_t numLoops = (iterations + maxIterationsPerPim - 1)/maxIterationsPerPim;
-//   for(uint64_t iter=0; iter<numLoops; ++iter) {
-//     const uint64_t currIterations = iter+1==numLoops ? (iterations - maxIterationsPerPim*(numLoops-1)) : maxIterationsPerPim;
-//     const uint64_t invalidResultsEachSide = radius * currIterations;
-
-//     uint64_t firstRowSrc = 0;
-//     for(;;) {
-//       const uint64_t firstRowUsableSrc = firstRowSrc + invalidResultsEachSide;
-//       if(firstRowUsableSrc + invalidResultsEachSide >= srcHost.size()) {
-//         break;
-//       }
-//       const uint64_t totalRowsThisIter = std::min(srcHost.size(), firstRowSrc + workingPimMemory.size()) - firstRowSrc;
-//       const uint64_t usableRowsThisIter = totalRowsThisIter - 2*invalidResultsEachSide;
-//       uint64_t workingPimMemoryIdx = 0;
-//       for(uint64_t srcHostRow = firstRowSrc; srcHostRow < firstRowSrc + totalRowsThisIter; ++srcHostRow) {
-//         if(iter == 0) {
-//           copyChunkedVectorPim(const_cast<std::vector<float>&>(srcHost[srcHostRow]), workingPimMemory[workingPimMemoryIdx], invalidResultsEachSide, numElementsHorizontal, true);
-//         } else {
-//           copyChunkedVectorPim(tmpGrid[srcHostRow], workingPimMemory[workingPimMemoryIdx], invalidResultsEachSide, numElementsHorizontal, true);
-//         }
-//         ++workingPimMemoryIdx;
-//       }
-
-//       for(uint64_t iterNum = 0; iterNum < currIterations; ++iterNum) {
-//         computeStencilChunkIteration(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
-//       }
-
-//       workingPimMemoryIdx = invalidResultsEachSide;
-//       for(uint64_t srcHostRow = firstRowUsableSrc; srcHostRow < firstRowUsableSrc + usableRowsThisIter; ++srcHostRow) {
-//         copyChunkedVectorPim(dstHost[srcHostRow], workingPimMemory[workingPimMemoryIdx], invalidResultsEachSide, numElementsHorizontal, false);
-//         ++workingPimMemoryIdx;
-//       }
-
-//       firstRowSrc += usableRowsThisIter;
-//     }
-//     std::swap(tmpGrid, dstHost);
-//   }
-//   std::swap(tmpGrid, dstHost);
-// }
-
-// void stencilCpu(std::vector<std::vector<float>>& src, std::vector<std::vector<float>>& dst, const uint64_t iterations, const uint64_t radius) {
-//   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
-//   const float stencilAreaInverseFloat = 1.0f / static_cast<float>(stencilAreaInt);
-
-//   for(uint64_t iter=1; iter<=iterations; ++iter) {
-//     // Only compute when stencil is fully in range
-//     const uint64_t startY = radius*iter;
-//     const uint64_t endY = src.size() - startY;
-//     const uint64_t startX = radius*iter;
-//     const uint64_t endX = src[0].size() - startX;
-//     #pragma omp parallel for collapse(2)
-//     for(uint64_t gridY=startY; gridY<endY; ++gridY) {
-//       for(uint64_t gridX=startX; gridX<endX; ++gridX) {
-//         float resCPU = 0.0f;
-//         for(uint64_t stencilY=gridY-radius; stencilY<=gridY+radius; ++stencilY) {
-//           for(uint64_t stencilX=gridX-radius; stencilX<=gridX+radius; ++stencilX) {
-//             resCPU += src[stencilY][stencilX];
-//           }
-//         }
-//         dst[gridY][gridX] = resCPU * stencilAreaInverseFloat;
-//       }
-//     }
-//     std::swap(src, dst);
-//   }
-//   std::swap(src, dst);
-// }
-
-void stencilCpu(std::span<float> src, std::span<float> dst, const uint64_t iterations, const uint64_t radius, uint64_t width, uint64_t height) {
+void stencilCpu(std::span<float> &src, std::span<float> &dst, const uint64_t iterations, const uint64_t radius, uint64_t width, uint64_t height) {
   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
   const float stencilAreaInverseFloat = 1.0f / static_cast<float>(stencilAreaInt);
 
@@ -532,18 +308,9 @@ void stencilCpu(std::span<float> src, std::span<float> dst, const uint64_t itera
         dst[gridY * width + gridX] = resCPU * stencilAreaInverseFloat;
       }
     }
-    saveToFile(("src_after_iteration_" + std::to_string(iter) + ".txt").c_str(), src.data(), 25, 5, 5, 5);
-    saveToFile(("dst_after_iteration_" + std::to_string(iter) + ".txt").c_str(), dst.data(), 25, 5, 5, 5);
     std::swap(src, dst);
   }
-  saveToFile("src_end.txt", src.data(), 25, 5, 5, 5);
-  saveToFile("dst_end.txt", dst.data(), 25, 5, 5, 5);
   std::swap(src, dst);
-  saveToFile("src_end_swap.txt", src.data(), 25, 5, 5, 5);
-  saveToFile("dst_end_swap.txt", dst.data(), 25, 5, 5, 5);
-  // if(iterations % 2 == 1) {
-  //   std::swap(src, dst);
-  // }
 }
 
 int main(int argc, char* argv[])
@@ -552,14 +319,9 @@ int main(int argc, char* argv[])
 
   std::cout << "Running PIM stencil for grid: " << params.gridHeight << "x" << params.gridWidth << std::endl;
   std::cout << "Stencil Radius: " << params.radius << ", Number of Iterations: " << params.iterations << std::endl;
-//   if constexpr(isHorizontallyChunked) {
-//     std::cout << "Stencil does not use cross region communication" << std::endl;
-//   } else {
-//     std::cout << "Stencil uses cross region communication" << std::endl;
-//   }
 
-  std::vector<float> x(params.gridHeight * params.gridWidth);
-  std::vector<float> y(params.gridHeight * params.gridWidth);
+  std::vector<float> x_(params.gridHeight * params.gridWidth);
+  std::vector<float> y_(params.gridHeight * params.gridWidth);
 
   if (params.inputFile == nullptr)
   {
@@ -573,15 +335,12 @@ int main(int argc, char* argv[])
       threadSeed += static_cast<uint32_t>(omp_get_thread_num());
     #endif
       std::mt19937 gen(threadSeed);
-      std::uniform_real_distribution<float> dist(0.0f, 1000.0f);
+      std::uniform_real_distribution<float> dist(0.0f, 10000.0f);
 
       #pragma omp for
       for(size_t i=0; i<params.gridHeight; ++i) {
         for(size_t j=0; j<params.gridWidth; ++j) {
-          // x[i * params.gridWidth + j] = static_cast<float>(i * params.gridWidth + j + 1);
-          float next = dist(gen);
-          assert(next >= 0.0f && next <= 10000.0f);
-          x[i * params.gridWidth + j] = static_cast<float>(next);
+          x_[i * params.gridWidth + j] = static_cast<float>(dist(gen));
         }
       }
     }
@@ -623,19 +382,17 @@ int main(int argc, char* argv[])
     numElementsHorizontal = deviceProp.numColPerSubarray;
   }
 
+  std::span<float> x(x_);
+  std::span<float> y(y_);
+
   stencil(x, y, params.iterations, params.radius);
 
   if (params.shouldVerify)
   {
-    saveToFile("input_grid.txt", x.data(), 25, 5, 5, 5);
+    std::vector<float> cpuY_(y.size());
+    std::span<float> cpuY(cpuY_);
 
-    std::vector<float> cpuY(y.size());
     stencilCpu(x, cpuY, params.iterations, params.radius, params.gridWidth, params.gridHeight);
-    if(params.iterations % 2 == 0) {
-      std::swap(x, cpuY);
-    }
-
-    saveToFile("pim_output_grid.txt", cpuY.data(), 25, 5, 5, 5);
 
     bool ok = true;
 

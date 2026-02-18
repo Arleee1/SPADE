@@ -24,6 +24,94 @@
 #include "util.h"
 #include "libpimeval.h"
 
+void saveToFile(const char* filename, const float* data, uint64_t numCores, uint64_t numCoresHorizontal, uint64_t tileWidth, uint64_t tileHeight) {
+  assert(numCoresHorizontal > 0);
+  assert(numCores % numCoresHorizontal == 0);
+  const uint64_t width = numCoresHorizontal * tileWidth;
+  const uint64_t numCoreRows = numCores / numCoresHorizontal;
+
+  FILE* file = std::fopen(filename, "w");
+  if (!file) {
+    std::perror("Failed to open file");
+    return;
+  }
+
+  for (uint64_t coreRow = 0; coreRow < numCoreRows; ++coreRow) {
+    for (uint64_t y = 0; y < tileHeight; ++y) {
+      const uint64_t srcY = coreRow * tileHeight + y;
+      for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
+        const uint64_t startX = coreCol * tileWidth;
+        const uint64_t endX = startX + tileWidth;
+        for (uint64_t x = startX; x < endX; ++x) {
+          const float value = data[srcY * width + x];
+          std::fprintf(file, "%07.2f ", value);
+        }
+        if (coreCol + 1 < numCoresHorizontal) {
+          std::fprintf(file, "\t\t");
+        }
+      }
+      std::fprintf(file, "\n");
+    }
+
+    if (coreRow + 1 < numCoreRows) {
+      std::fprintf(file, "\n\n");
+    }
+  }
+
+  std::fclose(file);
+}
+
+void savePimGridToFile(const char* filename, PimObjGrid& grid, uint64_t numCores, uint64_t numCoresHorizontal, uint64_t tileWidth, uint64_t tileHeight) {
+  assert(numCoresHorizontal > 0);
+  assert(numCores % numCoresHorizontal == 0);
+  const uint64_t width = numCores * tileWidth;
+  const uint64_t numCoreRows = numCores / numCoresHorizontal;
+  const uint64_t rowsToPrint = std::min<uint64_t>(tileHeight, grid.size());
+
+  FILE* file = std::fopen(filename, "w");
+  if (!file) {
+    std::perror("Failed to open file");
+    return;
+  }
+
+  if (rowsToPrint < tileHeight) {
+    std::fprintf(file, "Requested tileHeight (%llu) exceeds available grid rows (%llu).\n",
+                 static_cast<unsigned long long>(tileHeight),
+                 static_cast<unsigned long long>(grid.size()));
+  }
+
+  std::vector<float> tmp(width);
+  for (uint64_t coreRow = 0; coreRow < numCoreRows; ++coreRow) {
+    for (uint64_t y = 0; y < rowsToPrint; ++y) {
+      pimCopyDeviceToHost(grid[y], tmp.data());
+
+      const uint64_t firstCoreInRow = coreRow * numCoresHorizontal;
+      for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
+        const uint64_t coreIdx = firstCoreInRow + coreCol;
+        const uint64_t startX = coreIdx * tileWidth;
+        const uint64_t endX = startX + tileWidth;
+
+        for (uint64_t x = startX; x < endX; ++x) {
+          const float value = tmp[x];
+          std::fprintf(file, "%07.2f ", value);
+        }
+
+        if (coreCol + 1 < numCoresHorizontal) {
+          std::fprintf(file, "\t\t");
+        }
+      }
+
+      std::fprintf(file, "\n");
+    }
+
+    if (coreRow + 1 < numCoreRows) {
+      std::fprintf(file, "\n\n");
+    }
+  }
+
+  std::fclose(file);
+}
+
 // Params ---------------------------------------------------------------------
 typedef struct Params
 {
@@ -42,8 +130,8 @@ void usage()
           "\nUsage:  ./stencil.out [options]"
           "\n"
           "\n    -n    iterations (default=10 iterations)"
-          "\n    -x    grid width (default=250 elements)"
-          "\n    -y    grid height (default=250 elements)"
+          "\n    -x    grid width (default=25 elements)"
+          "\n    -y    grid height (default=25 elements)"
           "\n    -r    stencil radius (default=1)"
           "\n    -c    dramsim config file"
           "\n    -i    input file containing a 2d array (default=random)"
@@ -55,8 +143,8 @@ struct Params getInputParams(int argc, char **argv)
 {
   struct Params p;
   p.iterations = 1;
-  p.gridWidth = 250;
-  p.gridHeight = 250;
+  p.gridWidth = 25;
+  p.gridHeight = 25;
   p.radius = 1;
   p.configFile = nullptr;
   p.inputFile = nullptr;
@@ -228,8 +316,9 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
 
   const uint64_t numCoresVertical = 5;
   const uint64_t numCoresHorizontal = 5;
-  const uint64_t tileHeight = 50;
-  const uint64_t tileWidth = 50;
+  const uint64_t totalCores = numCoresVertical * numCoresHorizontal;
+  const uint64_t tileHeight = 5;
+  const uint64_t tileWidth = 5;
   const uint64_t rowsToAllocate = (tileHeight + 2*radius) + (2*radius+1) + (1) + (1);
   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
   const float stencilAreaFloat = 1.0f / static_cast<float>(stencilAreaInt);
@@ -264,19 +353,27 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   //! @todo grid: need to remove
   std::vector<PimObjId> workingPimMemoryVec(workingPimMemory.begin(), workingPimMemory.end());
 
+  savePimGridToFile("before_halo.txt", grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
+
   status = pimCopyGridHalo(workingPimMemoryVec, radius);
   assert(status == PIM_OK);
 
+  savePimGridToFile("before_stencil.txt", grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
+
   for(size_t iter = 0; iter < iterations; ++iter) {
     computeStencilChunkIteration(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
+    savePimGridToFile(("after_stencil_iter_" + std::to_string(iter) + ".txt").c_str(), grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
       status = pimCopyGridHalo(workingPimMemoryVec, radius);
       assert(status == PIM_OK);
+      savePimGridToFile(("after_copy_halo_iter_" + std::to_string(iter) + ".txt").c_str(), grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
     }
   }
 
+  savePimGridToFile("after_stencil.txt", grid, totalCores, numCoresHorizontal, tileWidth + 2*radius, tileHeight + 2*radius);
+
   // Only copy back the non-halo region
-  status = pimCopyGridToHost(grid, dstHost.data(), 1, tileWidth + 1, 1, tileHeight + 1);
+  status = pimCopyGridToHost(grid, dstHost.data(), radius, tileWidth + radius, radius, tileHeight + radius);
   assert(status == PIM_OK);
 
   // dest should now have the results of the stencil computation
@@ -435,9 +532,18 @@ void stencilCpu(std::span<float> src, std::span<float> dst, const uint64_t itera
         dst[gridY * width + gridX] = resCPU * stencilAreaInverseFloat;
       }
     }
+    saveToFile(("src_after_iteration_" + std::to_string(iter) + ".txt").c_str(), src.data(), 25, 5, 5, 5);
+    saveToFile(("dst_after_iteration_" + std::to_string(iter) + ".txt").c_str(), dst.data(), 25, 5, 5, 5);
     std::swap(src, dst);
   }
+  saveToFile("src_end.txt", src.data(), 25, 5, 5, 5);
+  saveToFile("dst_end.txt", dst.data(), 25, 5, 5, 5);
   std::swap(src, dst);
+  saveToFile("src_end_swap.txt", src.data(), 25, 5, 5, 5);
+  saveToFile("dst_end_swap.txt", dst.data(), 25, 5, 5, 5);
+  // if(iterations % 2 == 1) {
+  //   std::swap(src, dst);
+  // }
 }
 
 int main(int argc, char* argv[])
@@ -461,14 +567,21 @@ int main(int argc, char* argv[])
 
     #pragma omp parallel
     {
-      std::random_device rd;
-      std::mt19937 gen(rd());
-      std::uniform_real_distribution<float> dist(0.0f, 10000.0f);
+      constexpr uint32_t baseSeed = 12345u;
+      uint32_t threadSeed = baseSeed;
+    #if defined(_OPENMP)
+      threadSeed += static_cast<uint32_t>(omp_get_thread_num());
+    #endif
+      std::mt19937 gen(threadSeed);
+      std::uniform_real_distribution<float> dist(0.0f, 1000.0f);
 
       #pragma omp for
       for(size_t i=0; i<params.gridHeight; ++i) {
         for(size_t j=0; j<params.gridWidth; ++j) {
-          x[i * params.gridWidth + j] = dist(gen);
+          // x[i * params.gridWidth + j] = static_cast<float>(i * params.gridWidth + j + 1);
+          float next = dist(gen);
+          assert(next >= 0.0f && next <= 10000.0f);
+          x[i * params.gridWidth + j] = static_cast<float>(next);
         }
       }
     }
@@ -514,8 +627,15 @@ int main(int argc, char* argv[])
 
   if (params.shouldVerify)
   {
+    saveToFile("input_grid.txt", x.data(), 25, 5, 5, 5);
+
     std::vector<float> cpuY(y.size());
     stencilCpu(x, cpuY, params.iterations, params.radius, params.gridWidth, params.gridHeight);
+    if(params.iterations % 2 == 0) {
+      std::swap(x, cpuY);
+    }
+
+    saveToFile("pim_output_grid.txt", cpuY.data(), 25, 5, 5, 5);
 
     bool ok = true;
 

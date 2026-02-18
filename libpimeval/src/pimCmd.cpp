@@ -398,27 +398,32 @@ pimCmdCopyGrid::execute()
     const uint64_t numCoresUsed = refObj.getNumCoresUsed();
     const uint64_t numElementsPerCoreVertical = pimGrid.size();
     const uint64_t numElementsPerCoreHorizontal = refObj.getNumElements() / numCoresUsed;
+    //! @todo grid: could be full range in one direction but not the other, need to handle that case
     const uint64_t idxBeginX = m_copyFullRange ? 0 : m_idxBeginX;
     const uint64_t idxEndX = m_copyFullRange ? numElementsPerCoreHorizontal : m_idxEndX;
     const uint64_t idxBeginY = m_copyFullRange ? 0 : m_idxBeginY;
     const uint64_t idxEndY = m_copyFullRange ? numElementsPerCoreVertical : m_idxEndY;
     const uint64_t totalCols = numCoresHorizontal * numElementsPerCoreHorizontal;
     const uint64_t bytesPerElement = (refObj.getBitsPerElement(PimBitWidth::HOST) + 7) / 8;
+    const uint64_t hostElementsPerCoreVertical = m_copyFullRange ? numElementsPerCoreVertical : (idxEndY - idxBeginY);
+    const uint64_t hostElementsPerCoreHorizontal = m_copyFullRange ? numElementsPerCoreHorizontal : (idxEndX - idxBeginX);
+    const uint64_t hostCols = numCoresHorizontal * hostElementsPerCoreHorizontal;
     uint8_t* hostBytes = static_cast<uint8_t*>(m_ptr);
 
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (uint64_t coreRow = 0; coreRow < numCoresVertical; ++coreRow) {
-      for (uint64_t y = idxBeginY; y < idxEndY; ++y) {
-        pimObjInfo &objCopy = m_device->getResMgr()->getObjInfo(pimGrid[y]);
+      for (uint64_t pimY = idxBeginY; pimY < idxEndY; ++pimY) {
+        pimObjInfo &objCopy = m_device->getResMgr()->getObjInfo(pimGrid[pimY]);
+        const uint64_t hostY = pimY - idxBeginY;
         for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
           const uint64_t coreIndex = coreRow * numCoresHorizontal + coreCol;
           const uint64_t coreStartIndex = coreIndex * numElementsPerCoreHorizontal;
           const uint64_t destIdxBegin = coreStartIndex + idxBeginX;
           const uint64_t destIdxEnd = coreStartIndex + idxEndX;
-          const uint64_t hostIndex = (coreRow * numElementsPerCoreVertical + y) * totalCols
-                              + (coreCol * numElementsPerCoreHorizontal + idxBeginX);
+          const uint64_t hostIndex = (coreRow * hostElementsPerCoreVertical + hostY) * hostCols
+                              + (coreCol * hostElementsPerCoreHorizontal);
           uint8_t* hostPtr = hostBytes + hostIndex * bytesPerElement;
           if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
             objCopy.copyFromHost(hostPtr, destIdxBegin, destIdxEnd);

@@ -17,9 +17,9 @@
 #include <omp.h>
 #endif
 
-bool testGridCopyHalo(PimDeviceEnum deviceType)
+bool testGridCopyHalo(PimDeviceEnum deviceType, uint64_t numHalo)
 {
-  std::cout << "Testing grid halo for device type " << deviceType << std::endl;
+  std::cout << "Testing grid halo for device type " << deviceType << " with numHalo = " << numHalo << std::endl;
 
   bool ok = true;
 
@@ -34,21 +34,20 @@ bool testGridCopyHalo(PimDeviceEnum deviceType)
   status = pimCreateDevice(deviceType, numRanks, numBankPerRank, numSubarrayPerBank, numRows, numCols);
   assert(status == PIM_OK);
 
-  const uint64_t srcWidth = 20;
-  const uint64_t srcHeight = 20;
-  const uint64_t tileWidth = 5;
-  const uint64_t tileHeight = 5;
-  const uint64_t numHalo = 1;
+  const uint64_t srcWidth = 800;
+  const uint64_t srcHeight = 800;
+  const uint64_t tileWidth = 80;
+  const uint64_t tileHeight = 80;
 
   const uint64_t numCoresVertical = srcHeight / tileHeight;
   const uint64_t numCoresHorizontal = srcWidth / tileWidth;
   const uint64_t numCores = numCoresVertical * numCoresHorizontal;
 
   const size_t numElements = srcWidth * srcHeight;
-  const size_t numElementsDest = numCores * (tileWidth+2) * (tileHeight+2);
+  const size_t numElementsDest = numCores * (tileWidth+2*numHalo) * (tileHeight+2*numHalo);
 
-  const uint64_t coreHeight = tileHeight + 2;
-  const uint64_t coreWidth = tileWidth + 2;
+  const uint64_t coreHeight = tileHeight + 2*numHalo;
+  const uint64_t coreWidth = tileWidth + 2*numHalo;
   const uint64_t totalWidth = numCoresHorizontal * coreWidth;
 
 
@@ -185,11 +184,19 @@ int main()
 
   bool ok = true;
 
-  ok &= testGridCopyHalo(PIM_DEVICE_BANK_LEVEL);
+  ok &= testGridCopyHalo(PIM_DEVICE_BANK_LEVEL, 1);
 
-  ok &= testGridCopyHalo(PIM_DEVICE_BITSIMD_V);
+  ok &= testGridCopyHalo(PIM_DEVICE_BITSIMD_V, 1);
 
-  ok &= testGridCopyHalo(PIM_DEVICE_FULCRUM);
+  ok &= testGridCopyHalo(PIM_DEVICE_FULCRUM, 1);
+
+  std::cout << "Testing with numHalo = 2" << std::endl;
+
+  ok &= testGridCopyHalo(PIM_DEVICE_BANK_LEVEL, 2);
+
+  ok &= testGridCopyHalo(PIM_DEVICE_BITSIMD_V, 2);
+
+  ok &= testGridCopyHalo(PIM_DEVICE_FULCRUM, 2);
 
   std::cout << "Grid Copy Halo Test " << (ok ? "PASSED" : "FAILED") << std::endl;
 

@@ -9,12 +9,9 @@
 #include <stdint.h>
 #include <iomanip>
 #include <cassert>
-#include <type_traits>
-#include <queue>
 #include <random>
 #include <limits>
 #include <algorithm>
-#include <list>
 #include <cstring>
 #include <span>
 #if defined(_OPENMP)
@@ -42,10 +39,10 @@ void usage()
   fprintf(stderr,
           "\nUsage:  ./stencil.out [options]"
           "\n"
-          "\n    -n    iterations (default=10 iterations)"
-          "\n    -x    grid width (default=25 elements)"
-          "\n    -y    grid height (default=25 elements)"
-          "\n    -r    stencil radius (default=1)"
+          "\n    -n    iterations (default=10 iteration)"
+          "\n    -x    grid width (default=10000 elements)"
+          "\n    -y    grid height (default=10000 elements)"
+          "\n    -r    stencil radius (default=2)"
           "\n    -c    dramsim config file"
           "\n    -i    input file containing a 2d array (default=random)"
           "\n    -v    t = verifies PIM output with host output. (default=false)"
@@ -55,10 +52,10 @@ void usage()
 struct Params getInputParams(int argc, char **argv)
 {
   struct Params p;
-  p.iterations = 1;
-  p.gridWidth = 25;
-  p.gridHeight = 25;
-  p.radius = 1;
+  p.iterations = 10;
+  p.gridWidth = 10000;
+  p.gridHeight = 10000;
+  p.radius = 2;
   p.configFile = nullptr;
   p.inputFile = nullptr;
   p.shouldVerify = false;
@@ -224,28 +221,93 @@ void computeStencilChunkIteration(std::span<PimObjId> workingPimMemory, std::spa
   }
 }
 
-void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uint64_t iterations, const uint64_t radius) {
+void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uint64_t gridWidth, const uint64_t iterations, const uint64_t radius,
+              const uint64_t maxAvailableCores, const uint64_t coreHeight, const uint64_t coreWidth) {
   assert(srcHost.size() == dstHost.size());
 
-  const uint64_t numCoresVertical = 5;
-  const uint64_t numCoresHorizontal = 5;
-  const uint64_t totalCores = numCoresVertical * numCoresHorizontal;
-  const uint64_t tileHeight = 5;
-  const uint64_t tileWidth = 5;
-  const uint64_t rowsToAllocate = (tileHeight + 2*radius) + (2*radius+1) + (1) + (1);
+  const uint64_t gridHeight = srcHost.size() / gridWidth;
+  const uint64_t extraRows = (2*radius) + (2*radius+1) + (1) + (1); // halo + rowsInSumCircularQueue + tmpPim + runningSum
+  const uint64_t extraCols = 2*radius; // halo
+  const uint64_t maxTileHeight = coreHeight - extraRows;
+  const uint64_t maxTileWidth = coreWidth - extraCols;
+
+  //! @todo grid: verify + cleanup -- what if grid doesn't fit nicely?
+  uint64_t tileHeight = 0;
+  uint64_t tileWidth = 0;
+  uint64_t numCoresVertical = 0;
+  uint64_t numCoresHorizontal = 0;
+  uint64_t totalCores = 0;
+
+  for (uint64_t candidateTotalCores = maxAvailableCores; candidateTotalCores > 0; --candidateTotalCores) {
+    bool foundForThisCoreCount = false;
+    uint64_t bestCoreShapeDiff = std::numeric_limits<uint64_t>::max();
+    for (uint64_t candidateCoresHorizontal = 1; candidateCoresHorizontal <= candidateTotalCores; ++candidateCoresHorizontal) {
+      if (candidateTotalCores % candidateCoresHorizontal != 0) {
+        continue;
+      }
+
+      const uint64_t candidateCoresVertical = candidateTotalCores / candidateCoresHorizontal;
+      if (gridWidth % candidateCoresHorizontal != 0 || gridHeight % candidateCoresVertical != 0) {
+        continue;
+      }
+
+      const uint64_t candidateTileWidth = gridWidth / candidateCoresHorizontal;
+      const uint64_t candidateTileHeight = gridHeight / candidateCoresVertical;
+      if (candidateTileWidth > maxTileWidth || candidateTileHeight > maxTileHeight) {
+        continue;
+      }
+
+      const uint64_t candidateCoreShapeDiff =
+          (candidateCoresVertical > candidateCoresHorizontal)
+              ? (candidateCoresVertical - candidateCoresHorizontal)
+              : (candidateCoresHorizontal - candidateCoresVertical);
+
+      if (!foundForThisCoreCount ||
+          candidateCoreShapeDiff < bestCoreShapeDiff ||
+          (candidateCoreShapeDiff == bestCoreShapeDiff && candidateCoresHorizontal > numCoresHorizontal)) {
+        foundForThisCoreCount = true;
+        bestCoreShapeDiff = candidateCoreShapeDiff;
+        totalCores = candidateTotalCores;
+        numCoresHorizontal = candidateCoresHorizontal;
+        numCoresVertical = candidateCoresVertical;
+        tileWidth = candidateTileWidth;
+        tileHeight = candidateTileHeight;
+      }
+    }
+
+    if (foundForThisCoreCount) {
+      break;
+    }
+  }
+
+  assert(totalCores > 0);
+  const uint64_t rowsToAllocate = tileHeight + extraRows;
+  const uint64_t colsToAllocate = tileWidth + extraCols;
+
+  assert(gridWidth == numCoresHorizontal * tileWidth);
+  assert(gridHeight == numCoresVertical * tileHeight);
+  assert(tileHeight <= maxTileHeight);
+  assert(tileWidth <= maxTileWidth);
+  assert(gridHeight % tileHeight == 0);
+  assert(gridWidth % tileWidth == 0);
+  assert(totalCores == numCoresVertical * numCoresHorizontal);
+  assert(srcHost.size() == numCoresVertical * tileHeight * numCoresHorizontal * tileWidth);
+
+
   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
   const float stencilAreaFloat = 1.0f / static_cast<float>(stencilAreaInt);
   uint32_t tmp;
   std::memcpy(&tmp, &stencilAreaFloat, sizeof(float));
   const uint64_t stencilAreaToMultiplyPim = static_cast<uint64_t>(tmp);
 
-  // Verify hard coded values
-  assert(srcHost.size() == numCoresVertical * tileHeight * numCoresHorizontal * tileWidth);
+  std::cout << "PIM Stencil for " << gridHeight << "x" << gridWidth << " grid with radius " << radius << " for " << iterations << " iterations" << std::endl;
+  std::cout << "Using " << totalCores << "/" << maxAvailableCores << " cores in a grid of " << numCoresVertical << "x" << numCoresHorizontal << " cores" << std::endl;
+  std::cout << "Tile size: " << tileHeight << "x" << tileWidth << std::endl;
 
   // Hard code sizes for now
   // (2*radius+1) + (1) + (1) -> represents arguments to stencilChunk function
   PimObjGrid grid = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, numCoresVertical, numCoresHorizontal,
-                                  rowsToAllocate, tileWidth + 2*radius, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
+                                  rowsToAllocate, colsToAllocate, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
   assert(!grid.empty());
   assert(rowsToAllocate == grid.size());
 
@@ -264,12 +326,13 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
 
   //! @todo grid: need to remove
   std::vector<PimObjId> workingPimMemoryVec(workingPimMemory.begin(), workingPimMemory.end());
-
   status = pimCopyGridHalo(workingPimMemoryVec, radius);
   assert(status == PIM_OK);
 
+
   for(size_t iter = 0; iter < iterations; ++iter) {
     computeStencilChunkIteration(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
+
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
       status = pimCopyGridHalo(workingPimMemoryVec, radius);
       assert(status == PIM_OK);
@@ -366,30 +429,30 @@ int main(int argc, char* argv[])
 
   constexpr uint64_t bitsPerElement = 32;
 
-  uint64_t numAssociable = 2 * deviceProp.numRowPerSubarray;
+  uint64_t coreHeight = 2 * deviceProp.numRowPerSubarray;
   if(!deviceProp.isHLayoutDevice) {
-    numAssociable /= bitsPerElement;
+    coreHeight /= bitsPerElement;
   }
 
-  uint64_t numElementsHorizontal;
+  uint64_t coreWidth;
   if(deviceProp.isHLayoutDevice) {
     switch(deviceProp.simTarget) {
       case PIM_DEVICE_FULCRUM:
       case PIM_DEVICE_BANK_LEVEL:
-        numElementsHorizontal = deviceProp.numColPerSubarray / bitsPerElement;
+        coreWidth = deviceProp.numColPerSubarray / bitsPerElement;
         break;
       default:
         std::cerr << "Stencil unimplemented for simulation target: " << deviceProp.simTarget << std::endl;
         std::exit(1);
     }
   } else {
-    numElementsHorizontal = deviceProp.numColPerSubarray;
+    coreWidth = deviceProp.numColPerSubarray;
   }
 
   std::span<float> x(x_);
   std::span<float> y(y_);
 
-  stencil(x, y, params.iterations, params.radius);
+  stencil(x, y, params.gridWidth, params.iterations, params.radius, deviceProp.numPIMCores, coreHeight, coreWidth);
 
   if (params.shouldVerify)
   {
@@ -397,7 +460,6 @@ int main(int argc, char* argv[])
     std::span<float> cpuY(cpuY_);
 
     stencilCpu(x, cpuY, params.iterations, params.radius, params.gridWidth, params.gridHeight);
-
     bool ok = true;
 
     // Only compute when stencil is fully in range

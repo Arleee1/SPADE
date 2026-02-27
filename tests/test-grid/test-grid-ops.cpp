@@ -66,6 +66,7 @@ bool testGridOps(PimDeviceEnum deviceType)
   // Prefix Sum Test
   for(uint64_t i=1; i < tileHeight; ++i) {
     status = pimAdd(grid[i-1], grid[i], grid[i]);
+    assert(status == PIM_OK);
   }
 
   // Copy back to host

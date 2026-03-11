@@ -347,7 +347,8 @@ typedef std::vector<PimObjId> PimObjGrid;
 //! @brief Different strategies for allocating PimObjIds in a PimObjGrid - determines layout of cores in memory
 enum PimAllocationStrategy {
   PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT = 0,
-  PIM_ALLOCATION_STRATEGY_GAME_OF_LIFE
+  PIM_ALLOCATION_STRATEGY_GAME_OF_LIFE,
+  PIM_ALLOCATION_STRATEGY_RANDOM, // for testing
   // etc.
 };
 

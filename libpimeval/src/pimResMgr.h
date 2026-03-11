@@ -16,6 +16,7 @@
 #include <string>            // for string
 #include <memory>            // for unique_ptr
 #include <cassert>           // for assert
+#include <variant>           // for variant
 
 class pimDevice;
 
@@ -289,6 +290,21 @@ private:
   uint64_t m_numCoresHorizontal = 0;
 };
 
+struct BankCoreLocation {
+  unsigned bankCoreIdx;
+};
+
+struct SubarrayCoreLocation {
+  unsigned bank;
+  unsigned subarrayCoreIdx;
+};
+
+struct PimCoreLocation {
+  unsigned rank;
+  unsigned chip;
+  std::variant<BankCoreLocation, SubarrayCoreLocation> loc;
+};
+
 //! @class  pimResMgr
 //! @brief  PIM resource manager
 class pimResMgr
@@ -349,6 +365,7 @@ private:
   std::unordered_map<PimObjId, pimObjInfo> m_objMap;
   std::unordered_map<PimCoreId, std::unique_ptr<pimResMgr::coreUsage>> m_coreUsage;
   std::unordered_map<PimObjId, std::set<PimObjId>> m_refMap;
+  std::unordered_map<PimCoreId, PimCoreLocation> m_coreLocMap;
   bool m_debugAlloc = 0;
 };
 

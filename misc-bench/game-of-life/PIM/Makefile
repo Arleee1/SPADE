@@ -12,8 +12,8 @@ ifeq ($(USE_OPENMP),1)
 	CXXFLAGS += -fopenmp
 endif
 
-EXEC := game-of-life.out
-SRC := game-of-life.cpp
+EXEC := game-of-life-grid.out
+SRC := game-of-life-grid.cpp
 
 debug perf dramsim3_integ: $(EXEC)
 

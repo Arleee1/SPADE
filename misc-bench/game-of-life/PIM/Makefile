@@ -12,13 +12,13 @@ ifeq ($(USE_OPENMP),1)
 	CXXFLAGS += -fopenmp
 endif
 
-EXEC := game-of-life-grid.out
-SRC := game-of-life-grid.cpp
+SRCS := game-of-life-grid.cpp game-of-life.cpp
+EXECS := $(SRCS:.cpp=.out)
 
-debug perf dramsim3_integ: $(EXEC)
+debug perf dramsim3_integ: $(EXECS)
 
-$(EXEC): $(SRC) $(DEPS)
+%.out: %.cpp $(DEPS)
 	$(CXX) $< $(CXXFLAGS) -o $@
 
 clean:
-	rm -rf $(EXEC) *.dSYM
+	rm -rf $(EXECS) *.dSYM

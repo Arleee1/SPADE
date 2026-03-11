@@ -12,13 +12,13 @@ ifeq ($(USE_OPENMP),1)
 	CXXFLAGS += -fopenmp
 endif
 
-EXEC := stencil-grid.out
-SRC := stencil-grid.cpp
+SRCS := stencil-grid.cpp
+EXECS := $(SRCS:.cpp=.out)
 
-debug perf dramsim3_integ: $(EXEC) $(EXEC2)
+debug perf dramsim3_integ: $(EXECS)
 
-$(EXEC): $(SRC) $(DEPS)
+%.out: %.cpp $(DEPS)
 	$(CXX) $< $(CXXFLAGS) -o $@
 
 clean:
-	rm -rf $(EXEC) $(EXEC2) *.dSYM
+	rm -rf $(EXECS) *.dSYM

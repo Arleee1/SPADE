@@ -3,25 +3,22 @@
 // This file is licensed under the MIT License.
 // See the LICENSE file in the root of this repository for more details.
 
-#include <iostream>
-#include <vector>
-#include <getopt.h>
-#include <stdint.h>
-#include <iomanip>
 #include <cassert>
-#include <list>
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
+#include <getopt.h>
+#include <iostream>
 #include <random>
 #include <span>
+#include <vector>
 #if defined(_OPENMP)
 #include <omp.h>
 #endif
 
 #include "util.h"
 #include "utilGrid.h"
-#include "utilBaselines.h"
 #include "libpimeval.h"
-
-using namespace std;
 
 // Params ---------------------------------------------------------------------
 typedef struct Params
@@ -29,8 +26,8 @@ typedef struct Params
   uint64_t iterations;
   uint64_t width;
   uint64_t height;
-  char *configFile;
-  char *inputFile;
+  const char *configFile;
+  const char *inputFile;
   bool shouldVerify;
 } Params;
 

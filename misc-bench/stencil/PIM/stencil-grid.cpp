@@ -3,17 +3,18 @@
 // This file is licensed under the MIT License.
 // See the LICENSE file in the root of this repository for more details.
 
-#include <iostream>
-#include <vector>
-#include <getopt.h>
-#include <stdint.h>
-#include <iomanip>
 #include <cassert>
-#include <random>
-#include <limits>
-#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
 #include <cstring>
+#include <getopt.h>
+#include <iomanip>
+#include <iostream>
+#include <random>
 #include <span>
+#include <vector>
 #if defined(_OPENMP)
 #include <omp.h>
 #endif
@@ -251,6 +252,11 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
 int main(int argc, char* argv[])
 {
   struct Params params = getInputParams(argc, argv);
+
+  if(params.radius == 0) {
+    std::cout << "Stencil radius must not be 0, please provide a different radius." << std::endl;
+    return 1;
+  }
 
   std::cout << "Running PIM stencil for grid: " << params.gridHeight << "x" << params.gridWidth << std::endl;
   std::cout << "Stencil Radius: " << params.radius << ", Number of Iterations: " << params.iterations << std::endl;

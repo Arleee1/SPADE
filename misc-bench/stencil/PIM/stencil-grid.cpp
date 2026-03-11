@@ -189,7 +189,6 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   const GridPartitioning partitioning = calculateGridPartitioning(gridWidth, gridHeight, maxAvailableCores, maxTileWidth, maxTileHeight);
 
   assert(partitioning.totalCores > 0);
-  const uint64_t rowsToAllocate = partitioning.tileHeight + extraRows;
   const uint64_t colsToAllocate = partitioning.tileWidth + extraCols;
 
   assert(srcHost.size() == partitioning.numCoresVertical * partitioning.tileHeight * partitioning.numCoresHorizontal * partitioning.tileWidth);
@@ -205,27 +204,22 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   std::cout << "Using " << partitioning.totalCores << "/" << maxAvailableCores << " cores in a grid of " << partitioning.numCoresVertical << "x" << partitioning.numCoresHorizontal << " cores" << std::endl;
   std::cout << "Tile size: " << partitioning.tileHeight << "x" << partitioning.tileWidth << std::endl;
 
-  PimObjGrid grid = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
-                                  rowsToAllocate, colsToAllocate, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
-  assert(!grid.empty());
-  assert(rowsToAllocate == grid.size());
+  PimObjGrid workingPimMemory = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
+                                  partitioning.tileHeight + 2*radius, colsToAllocate, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
+  assert(partitioning.tileHeight + 2*radius == workingPimMemory.size());
 
-  PimStatus status = pimCopyHostToGrid(srcHost.data(), grid, radius, partitioning.tileWidth + radius, radius, partitioning.tileHeight + radius);
+  PimObjGrid rowsInSumCircularQueue = pimAllocGridAssociated(workingPimMemory[0], PIM_FP32, 2*radius+1);
+  assert(2*radius+1 == rowsInSumCircularQueue.size());
+
+  PimObjGrid tmpObjsGrid = pimAllocGridAssociated(workingPimMemory[0], PIM_FP32, 2);
+  assert(2 == tmpObjsGrid.size());
+  PimObjId tmpPim = tmpObjsGrid[0];
+  PimObjId runningSum = tmpObjsGrid[1];
+
+  PimStatus status = pimCopyHostToGrid(srcHost.data(), workingPimMemory, radius, partitioning.tileWidth + radius, radius, partitioning.tileHeight + radius);
   assert(status == PIM_OK);
 
-  auto it = grid.begin();
-  std::span<PimObjId> workingPimMemory(it, it + partitioning.tileHeight + 2*radius);
-  it += partitioning.tileHeight + 2*radius;
-  std::span<PimObjId> rowsInSumCircularQueue(it, it + (2*radius+1));
-  it += (2*radius+1);
-  PimObjId tmpPim = *it;
-  ++it;
-  PimObjId runningSum = *it;
-  assert(it+1 == grid.end());
-
-  //! @todo grid: need to remove
-  std::vector<PimObjId> workingPimMemoryVec(workingPimMemory.begin(), workingPimMemory.end());
-  status = pimCopyGridHalo(workingPimMemoryVec, radius);
+  status = pimCopyGridHalo(workingPimMemory, radius);
   assert(status == PIM_OK);
 
 
@@ -233,49 +227,26 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
     computeStencilChunkIteration(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
 
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
-      status = pimCopyGridHalo(workingPimMemoryVec, radius);
+      status = pimCopyGridHalo(workingPimMemory, radius);
       assert(status == PIM_OK);
     }
   }
 
   // Only copy back the non-halo region
-  status = pimCopyGridToHost(grid, dstHost.data(), radius, partitioning.tileWidth + radius, radius, partitioning.tileHeight + radius);
+  status = pimCopyGridToHost(workingPimMemory, dstHost.data(), radius, partitioning.tileWidth + radius, radius, partitioning.tileHeight + radius);
   assert(status == PIM_OK);
 
   // dest should now have the results of the stencil computation
 
-  status = pimFreeGrid(grid);
+  status = pimFreeGrid(workingPimMemory);
+  assert(status == PIM_OK);
+
+  status = pimFreeGrid(rowsInSumCircularQueue);
+  assert(status == PIM_OK);
+
+  status = pimFreeGrid(tmpObjsGrid);
   assert(status == PIM_OK);
 }
-
-// void stencilCpu(std::span<float> &src, std::span<float> &dst, const uint64_t iterations, const uint64_t radius, uint64_t width, uint64_t height) {
-//   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
-//   const float stencilAreaInverseFloat = 1.0f / static_cast<float>(stencilAreaInt);
-
-//   for(uint64_t iter=1; iter<=iterations; ++iter) {
-//     // Only compute when stencil is fully in range
-//     const uint64_t startY = radius*iter;
-//     const uint64_t endY = height - startY;
-//     const uint64_t startX = radius*iter;
-//     const uint64_t endX = width - startX;
-// #if defined(_OPENMP)
-// #pragma omp parallel for collapse(2)
-// #endif
-//     for(uint64_t gridY=startY; gridY<endY; ++gridY) {
-//       for(uint64_t gridX=startX; gridX<endX; ++gridX) {
-//         float resCPU = 0.0f;
-//         for(uint64_t stencilY=gridY-radius; stencilY<=gridY+radius; ++stencilY) {
-//           for(uint64_t stencilX=gridX-radius; stencilX<=gridX+radius; ++stencilX) {
-//             resCPU += src[stencilY * width + stencilX];
-//           }
-//         }
-//         dst[gridY * width + gridX] = resCPU * stencilAreaInverseFloat;
-//       }
-//     }
-//     std::swap(src, dst);
-//   }
-//   std::swap(src, dst);
-// }
 
 int main(int argc, char* argv[])
 {

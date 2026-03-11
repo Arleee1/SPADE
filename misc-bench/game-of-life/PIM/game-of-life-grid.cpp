@@ -138,18 +138,8 @@ void computeGOLChunkIteration(PimObjGrid& workingPimMemory, PimObjGrid& rowsInSu
     assert (status == PIM_OK);
 
     circularQueueTop = (1+circularQueueTop) % rowsInSumCircularQueue.size();
-    ++nextRowToAdd;
-
     circularQueueBot = (1+circularQueueBot) % rowsInSumCircularQueue.size();
-
-    // status = pimMulScalar(runningSum, workingPimMemory[row], stencilAreaToMultiplyPim);
-    // assert (status == PIM_OK);
-
-    // if(row+1<workingPimMemory.size()-radius) {
-    //   status = pimSub(runningSum, rowsInSumCircularQueue[circularQueueBot], runningSum);
-    //   assert (status == PIM_OK);
-    //   circularQueueBot = (1+circularQueueBot) % rowsInSumCircularQueue.size();
-    // }
+    ++nextRowToAdd;
   }
 }
 
@@ -191,15 +181,13 @@ void game_of_life(const std::span<uint8_t> &src_host, std::span<uint8_t> &dst_ho
   //! @todo allocation strategy
   PimObjGrid rowsInSumCircularQueue = pimAllocGrid(PIM_ALLOC_AUTO, PIM_UINT8, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
                                   rowsToAllocateUint8, colsToAllocate, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
-  assert(!rowsInSumCircularQueue.empty());
   assert(rowsToAllocateUint8 == rowsInSumCircularQueue.size());
 
   PimObjGrid workingPimMemory = pimAllocGridAssociated(rowsInSumCircularQueue[0], PIM_BOOL, rowsToAllocateBool - 1);
-  assert(!workingPimMemory.empty());
   assert(rowsToAllocateBool - 1 == workingPimMemory.size());
 
   PimObjGrid tmpPimBoolGrid = pimAllocGridAssociated(rowsInSumCircularQueue[0], PIM_BOOL, 1);
-  assert(!tmpPimBoolGrid.empty());
+  assert(1 == tmpPimBoolGrid.size());
   PimObjId tmpPimBool = tmpPimBoolGrid[0];
 
   status = pimCopyHostToGrid(src_host.data(), workingPimMemory, 1, partitioning.tileWidth + 1, 1, partitioning.tileHeight + 1);

@@ -141,6 +141,7 @@ pimDevice::init()
   const pimParamsDram& paramsDram = pimSim::get()->getParamsDram(); // created before pimDevice ctor
   pimPerfEnergyModelParams params(getSimTarget(), getNumRanks(), paramsDram);
   m_perfEnergyModel = pimPerfEnergyFactory::createPerfEnergyModel(params);
+  m_numChipPerRank = paramsDram.getNumChipsPerRank();
 
   // Disable simulated memory creation for functional simulation
   if (getDeviceType() != PIM_FUNCTIONAL) {

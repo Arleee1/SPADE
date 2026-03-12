@@ -33,6 +33,7 @@ public:
   PimDeviceEnum getDeviceType() const { return m_config.getDeviceType(); }
   PimDeviceEnum getSimTarget() const { return m_config.getSimTarget(); }
   unsigned getNumRanks() const { return m_config.getNumRanks(); }
+  unsigned getNumChipPerRank() const { return m_numChipPerRank; }
   unsigned getNumBankPerRank() const { return m_config.getNumBankPerRank(); }
   unsigned getNumSubarrayPerBank() const { return m_config.getNumSubarrayPerBank(); }
   unsigned getNumRowPerSubarray() const { return m_config.getNumRowPerSubarray(); }
@@ -83,6 +84,7 @@ private:
   bool adjustConfigForSimTarget(unsigned& numRanks, unsigned& numBankPerRank, unsigned& numSubarrayPerBank, unsigned& numRows, unsigned& numCols);
 
   const pimSimConfig& m_config;
+  unsigned m_numChipPerRank = 0;
   unsigned m_numCores = 0;
   unsigned m_numRows = 0;
   unsigned m_numCols = 0;

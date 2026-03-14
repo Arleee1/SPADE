@@ -48,12 +48,16 @@ pimDevice::adjustConfigForSimTarget(unsigned& numRanks, unsigned& numBankPerRank
     }
     numRows *= 2;
     numSubarrayPerBank /= 2;
+    m_bankCoreDevice = false;
+    m_numCoreInNextLevel = numSubarrayPerBank;
     break;
   case PIM_DEVICE_BANK_LEVEL:
   case PIM_DEVICE_AIM:
     std::printf("PIM-Info: Aggregate all subarrays within a bank as a single core\n");
     numRows *= numSubarrayPerBank;
     numSubarrayPerBank = 1;
+    m_bankCoreDevice = true;
+    m_numCoreInNextLevel = numBankPerRank / getNumChipPerRank();
     break;
   case PIM_DEVICE_AQUABOLT:
     std::printf("PIM-Info: Aggregate all subarrays of two consecutive banks as a single core\n");
@@ -64,6 +68,8 @@ pimDevice::adjustConfigForSimTarget(unsigned& numRanks, unsigned& numBankPerRank
     numRows *= numSubarrayPerBank*2;
     numSubarrayPerBank = 1;
     numBankPerRank /= 2;
+    m_bankCoreDevice = true;
+    m_numCoreInNextLevel = numBankPerRank / getNumChipPerRank();
     break;
   default:
     assert(0);
@@ -105,6 +111,8 @@ pimDevice::init()
   unsigned numRows = getNumRowPerSubarray();
   unsigned numCols = getNumColPerSubarray();
   unsigned bufferSize = getOnChipBufferSize();
+  const pimParamsDram& paramsDram = pimSim::get()->getParamsDram(); // created before pimDevice ctor
+  m_numChipPerRank = paramsDram.getNumChipsPerRank();
   if (adjustConfigForSimTarget(numRanks, numBankPerRank, numSubarrayPerBank, numRows, numCols)) {
     m_numCores = numRanks * numBankPerRank * numSubarrayPerBank;
     m_numRows = numRows;
@@ -138,10 +146,8 @@ pimDevice::init()
   }
 
   m_resMgr = std::make_unique<pimResMgr>(this);
-  const pimParamsDram& paramsDram = pimSim::get()->getParamsDram(); // created before pimDevice ctor
   pimPerfEnergyModelParams params(getSimTarget(), getNumRanks(), paramsDram);
   m_perfEnergyModel = pimPerfEnergyFactory::createPerfEnergyModel(params);
-  m_numChipPerRank = paramsDram.getNumChipsPerRank();
 
   // Disable simulated memory creation for functional simulation
   if (getDeviceType() != PIM_FUNCTIONAL) {
@@ -159,6 +165,60 @@ pimDevice::init()
 
   m_isInit = true;
   return m_isValid;
+}
+
+//! @brief  Get a PIM Core Location from a core ID
+//! @details This is formally proved to be the inverse of getCoreId in proofs/core_inverses.lean
+PimCoreLocation
+pimDevice::getCoreLocation(PimCoreId coreId) const
+{
+  assert(coreId < m_numCores);
+
+  unsigned numBankPerRank = getNumBankPerRank();
+  unsigned numChipPerRank = getNumChipPerRank();
+  if (m_bankCoreDevice) {
+    unsigned coresPerChip = m_numCoreInNextLevel;
+    unsigned coresPerRank = coresPerChip * numChipPerRank;
+    unsigned rank = coreId / coresPerRank;
+    unsigned rem = coreId % coresPerRank;
+    unsigned chip = rem / coresPerChip;
+    rem = rem % coresPerChip;
+    unsigned bankCoreIdx = rem;
+    return PimCoreLocation{rank, chip, BankCoreLocation{bankCoreIdx}};
+  } else {
+    unsigned coresPerBank = m_numCoreInNextLevel;
+    unsigned coresPerChip = coresPerBank * (numBankPerRank/numChipPerRank);
+    unsigned coresPerRank = coresPerChip * numChipPerRank;
+    unsigned rank = coreId / coresPerRank;
+    unsigned rem = coreId % coresPerRank;
+    unsigned chip = rem / coresPerChip;
+    rem = rem % coresPerChip;
+    unsigned bankCoreIdx = rem / coresPerBank;
+    rem = rem % coresPerBank;
+    unsigned subarrayCoreIdx = rem;
+    return PimCoreLocation{rank, chip, SubarrayCoreLocation{bankCoreIdx, subarrayCoreIdx}};
+  }
+}
+
+//! @brief  Get a PIM Core ID from a core location
+//! @details This is formally proved to be the inverse of getCoreLocation in proofs/core_inverses.lean
+PimCoreId
+pimDevice::getCoreId(PimCoreLocation coreLoc) const
+{
+  // Implementation for getting core ID from location
+  unsigned rank = coreLoc.rank;
+  unsigned chip = coreLoc.chip;
+  if (m_bankCoreDevice) {
+    unsigned bankCoreIdx = std::get<BankCoreLocation>(coreLoc.loc).bankCoreIdx;
+    return rank * (getNumChipPerRank() * m_numCoreInNextLevel) + chip * m_numCoreInNextLevel + bankCoreIdx;
+  } else {
+    unsigned bank = std::get<SubarrayCoreLocation>(coreLoc.loc).bank;
+    unsigned subarrayCoreIdx = std::get<SubarrayCoreLocation>(coreLoc.loc).subarrayCoreIdx;
+    unsigned numCorePerRank = getNumBankPerRank() * m_numCoreInNextLevel;
+    unsigned numCorePerChip = m_numCoreInNextLevel * (getNumBankPerRank()/getNumChipPerRank());
+    unsigned numCorePerBank = m_numCoreInNextLevel;
+    return rank * numCorePerRank + chip * numCorePerChip + bank * numCorePerBank + subarrayCoreIdx;
+  }
 }
 
 //! @brief  Alloc a PIM object

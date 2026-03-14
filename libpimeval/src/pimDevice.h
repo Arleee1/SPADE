@@ -17,6 +17,21 @@
 #endif
 #include <memory>
 
+struct BankCoreLocation {
+  unsigned bankCoreIdx;
+};
+
+struct SubarrayCoreLocation {
+  unsigned bank;
+  unsigned subarrayCoreIdx;
+};
+
+struct PimCoreLocation {
+  unsigned rank;
+  unsigned chip;
+  std::variant<BankCoreLocation, SubarrayCoreLocation> loc;
+};
+
 class pimResMgr;
 
 
@@ -45,6 +60,11 @@ public:
   unsigned getNumCols() const { return m_numCols; }
   unsigned getBufferSize() const { return m_bufferSize; }
   bool isValid() const { return m_isValid; }
+
+  PimCoreLocation getCoreLocation(PimCoreId coreId) const;
+  PimCoreId getCoreId(PimCoreLocation coreLoc) const;
+  unsigned getNumCoresInNextLevel() const { return m_numCoreInNextLevel; }
+  bool isBankCoreDevice() const { return m_bankCoreDevice; }
 
   bool isVLayoutDevice() const;
   bool isHLayoutDevice() const;
@@ -89,8 +109,10 @@ private:
   unsigned m_numRows = 0;
   unsigned m_numCols = 0;
   unsigned m_bufferSize = 0;
+  unsigned m_numCoreInNextLevel = 0;
   bool m_isValid = false;
   bool m_isInit = false;
+  bool m_bankCoreDevice = false; // true if device has bank-level cores, false if device has subarray-level cores
   std::unique_ptr<pimResMgr> m_resMgr;
   std::unique_ptr<pimPerfEnergyBase> m_perfEnergyModel;
   std::vector<pimCore> m_cores;

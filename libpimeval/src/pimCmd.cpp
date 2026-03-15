@@ -403,7 +403,6 @@ pimCmdCopyGrid::execute()
     const uint64_t idxEndX = m_copyFullRange ? numElementsPerCoreHorizontal : m_idxEndX;
     const uint64_t idxBeginY = m_copyFullRange ? 0 : m_idxBeginY;
     const uint64_t idxEndY = m_copyFullRange ? numElementsPerCoreVertical : m_idxEndY;
-    const uint64_t totalCols = numCoresHorizontal * numElementsPerCoreHorizontal;
     const uint64_t bytesPerElement = (refObj.getBitsPerElement(PimBitWidth::HOST) + 7) / 8;
     const uint64_t hostElementsPerCoreVertical = m_copyFullRange ? numElementsPerCoreVertical : (idxEndY - idxBeginY);
     const uint64_t hostElementsPerCoreHorizontal = m_copyFullRange ? numElementsPerCoreHorizontal : (idxEndX - idxBeginX);

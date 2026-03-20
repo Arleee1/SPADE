@@ -11,6 +11,7 @@
 #include "pimPerfEnergyBankLevel.h"
 #include "pimPerfEnergyAquabolt.h"
 #include "pimPerfEnergyAim.h"
+#include "pimDevice.h"
 #include <cstdint>
 #include <cstdio>
 
@@ -68,7 +69,7 @@ pimPerfEnergyBase::pimPerfEnergyBase(const pimPerfEnergyModelParams& params)
   m_GDLWidth = m_paramsDram.getBurstLength() * m_paramsDram.getDeviceWidth();
   m_numChipsPerRank = m_paramsDram.getNumChipsPerRank();
   m_typicalRankBW = m_paramsDram.getTypicalRankBW(); // GB/s
-  m_tCK = m_paramsDram.gettCK() / m_nano_to_milli; // Convert ns to ms 
+  m_tCK = m_paramsDram.gettCK() / m_nano_to_milli; // Convert ns to ms
   m_tCCD_S = m_paramsDram.gettCCD_S();
   m_tCCD_L = m_paramsDram.gettCCD_L();
   m_tRCD = m_paramsDram.gettRCD();
@@ -81,7 +82,7 @@ pimPerfEnergyBase::pimPerfEnergyBase(const pimPerfEnergyModelParams& params)
 pimeval::perfEnergy
 pimPerfEnergyBase::getPerfEnergyForBytesTransfer(PimCmdEnum cmdType, uint64_t numBytes) const
 {
-  //TODO: fine grain perf-energy modeling 
+  //TODO: fine grain perf-energy modeling
   double mjEnergy = 0.0;
   double msRead = 0.0;
   double msWrite = 0.0;
@@ -198,6 +199,25 @@ pimPerfEnergyBase::getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimObjInf
 //! @brief  Perf energy model of base class for MAC
 pimeval::perfEnergy
 pimPerfEnergyBase::getPerfEnergyForMac(PimCmdEnum cmdType, const pimObjInfo& obj) const
+{
+  double msRuntime = 1e10;
+  double mjEnergy = 999999999.9;
+  double msRead = 0.0;
+  double msWrite = 0.0;
+  double msCompute = 0.0;
+  uint64_t mTotalOP = 0;
+  return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, mTotalOP);
+}
+
+//! @brief  Perf energy model of base class for halo copy
+pimeval::perfEnergy
+pimPerfEnergyBase::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
+                                            const std::vector<PimCoreLocation>& coreLocations,
+                                            uint64_t numCoresVertical,
+                                            uint64_t numCoresHorizontal,
+                                            uint64_t numElementsPerCoreVertical,
+                                            uint64_t numElementsPerCoreHorizontal,
+                                            uint64_t numHalo) const
 {
   double msRuntime = 1e10;
   double mjEnergy = 999999999.9;

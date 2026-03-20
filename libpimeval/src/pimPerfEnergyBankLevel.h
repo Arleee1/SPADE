@@ -12,6 +12,7 @@
 #include "pimCmd.h"                    // for PimCmdEnum
 #include "pimResMgr.h"                 // for pimObjInfo
 #include "pimPerfEnergyBase.h"         // for pimPerfEnergyBase
+#include "pimDevice.h"                 // for PimCoreLocation
 
 
 //! @class  pimPerfEnergyBankLevel
@@ -28,6 +29,13 @@ public:
   virtual pimeval::perfEnergy getPerfEnergyForBroadcast(PimCmdEnum cmdType, const pimObjInfo& obj) const override;
   virtual pimeval::perfEnergy getPerfEnergyForRotate(PimCmdEnum cmdType, const pimObjInfo& obj, bool useCrossRegionCommunication) const override;
   virtual pimeval::perfEnergy getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimObjInfo& obj) const override;
+  virtual pimeval::perfEnergy getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
+                                                        const std::vector<PimCoreLocation>& coreLocations,
+                                                        uint64_t numCoresVertical,
+                                                        uint64_t numCoresHorizontal,
+                                                        uint64_t numElementsPerCoreVertical,
+                                                        uint64_t numElementsPerCoreHorizontal,
+                                                        uint64_t numHalo) const override;
 
 protected:
   double m_blimpLatency = m_tCCD_L * m_tCK;

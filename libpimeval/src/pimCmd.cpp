@@ -668,7 +668,31 @@ pimCmdCopyHalo::sanityCheck() const
 bool
 pimCmdCopyHalo::updateStats() const
 {
-  //! @todo grid: implement
+  const pimObjInfo& firstObj = m_device->getResMgr()->getObjInfo(m_srcGrid[0]);
+  PimDataType dataType = firstObj.getDataType();
+  bool isVLayout = firstObj.isVLayout();
+
+  const std::vector<pimRegion>& regions = firstObj.getRegions();
+  std::vector<PimCoreLocation> coreLocations(regions.size());
+  for (size_t i = 0; i < regions.size(); ++i) {
+    coreLocations[i] = m_device->getCoreLocation(regions[i].getCoreId());
+  }
+
+  const uint64_t numCoresVertical = firstObj.getNumCoresVertical();
+  const uint64_t numCoresHorizontal = firstObj.getNumCoresHorizontal();
+  const uint64_t numCoresUsed = firstObj.getNumCoresUsed();
+  const uint64_t numElementsPerCoreVertical = m_srcGrid.size();
+  const uint64_t numElementsPerCoreHorizontal = firstObj.getNumElements() / numCoresUsed;
+
+  pimeval::perfEnergy mPerfEnergy = pimSim::get()->getPerfEnergyModel()->getPerfEnergyForHaloCopy(
+      m_cmdType,
+      coreLocations,
+      numCoresVertical,
+      numCoresHorizontal,
+      numElementsPerCoreVertical,
+      numElementsPerCoreHorizontal,
+      m_numHalo);
+  pimSim::get()->getStatsMgr()->recordCmd(getName(dataType, isVLayout), mPerfEnergy);
   return true;
 }
 

@@ -13,6 +13,9 @@
 #include "pimResMgr.h"                 // for pimObjInfo
 #include <cstdint>
 #include <memory>                      // for std::unique_ptr
+#include <vector>
+
+struct PimCoreLocation;
 
 
 namespace pimeval {
@@ -73,6 +76,13 @@ public:
   virtual pimeval::perfEnergy getPerfEnergyForRotate(PimCmdEnum cmdType, const pimObjInfo& obj, bool useCrossRegionCommunication) const;
   virtual pimeval::perfEnergy getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimObjInfo& obj) const;
   virtual pimeval::perfEnergy getPerfEnergyForMac(PimCmdEnum cmdType, const pimObjInfo& obj) const;
+  virtual pimeval::perfEnergy getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
+                                                        const std::vector<PimCoreLocation>& coreLocations,
+                                                        uint64_t numCoresVertical,
+                                                        uint64_t numCoresHorizontal,
+                                                        uint64_t numElementsPerCoreVertical,
+                                                        uint64_t numElementsPerCoreHorizontal,
+                                                        uint64_t numHalo) const;
 
 protected:
   PimDeviceEnum m_simTarget;
@@ -96,7 +106,7 @@ protected:
   double m_eL; // Logic energy in mJ microjoule
   double m_eR; // local row buffer to global row buffer
   double m_eW; // global row buffer to local row buffer
-  double m_eACT; // Row activate energy in mJ 
+  double m_eACT; // Row activate energy in mJ
   double m_ePRE; // Row precharge energy in mJ
   double m_pBCore; // background power for each core in W
   double m_pBChip; // background power for each core in W

@@ -162,18 +162,23 @@ void game_of_life(const std::span<uint8_t> &src_host, std::span<uint8_t> &dst_ho
     maxTileWidth = coreWidth - extraColsBool;
   }
 
-  const GridPartitioning partitioning = calculateGridPartitioning(width, height, maxAvailableCores, maxTileWidth, maxTileHeight);
+  const GridPartitioning partitioning = calculateGridPartitioning(width, height, maxAvailableCores,
+                                                                  maxTileWidth, maxTileHeight);
 
   assert(partitioning.totalCores > 0);
   const uint64_t rowsToAllocateBool = partitioning.tileHeight + extraRowsBool;
   const uint64_t rowsToAllocateUint8 = extraRowsUint8;
   const uint64_t colsToAllocate = partitioning.tileWidth + extraColsBool;
+  const uint64_t coveredWidth = (partitioning.numCoresHorizontal - 1) * partitioning.tileWidth + partitioning.tileWidthLast;
+  const uint64_t coveredHeight = (partitioning.numCoresVertical - 1) * partitioning.tileHeight + partitioning.tileHeightLast;
 
-  assert(src_host.size() == partitioning.numCoresVertical * partitioning.tileHeight * partitioning.numCoresHorizontal * partitioning.tileWidth);
+  assert(coveredWidth == width);
+  assert(coveredHeight == height);
 
   std::cout << "PIM Game of Life for " << height << "x" << width << " for " << iterations << " iterations" << std::endl;
   std::cout << "Using " << partitioning.totalCores << "/" << maxAvailableCores << " cores in a grid of " << partitioning.numCoresVertical << "x" << partitioning.numCoresHorizontal << " cores" << std::endl;
-  std::cout << "Tile size: " << partitioning.tileHeight << "x" << partitioning.tileWidth << std::endl;
+  std::cout << "Tile size: " << partitioning.tileHeight << "x" << partitioning.tileWidth
+            << " (last: " << partitioning.tileHeightLast << "x" << partitioning.tileWidthLast << ")" << std::endl;
 
   //! @todo allocation strategy
   PimObjGrid rowsInSumCircularQueue = pimAllocGrid(PIM_ALLOC_AUTO, PIM_UINT8, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
@@ -187,7 +192,10 @@ void game_of_life(const std::span<uint8_t> &src_host, std::span<uint8_t> &dst_ho
   assert(1 == tmpPimBoolGrid.size());
   PimObjId tmpPimBool = tmpPimBoolGrid[0];
 
-  status = pimCopyHostToGrid(src_host.data(), workingPimMemory, 1, partitioning.tileWidth + 1, 1, partitioning.tileHeight + 1);
+  status = pimCopyHostToGrid(src_host.data(), workingPimMemory,
+                             1, partitioning.tileWidth + 1,
+                             1, partitioning.tileHeight + 1,
+                             partitioning.tileWidthLast + 1, partitioning.tileHeightLast + 1);
   assert(status == PIM_OK);
 
   status = pimCopyGridHalo(workingPimMemory, 1);
@@ -204,7 +212,10 @@ void game_of_life(const std::span<uint8_t> &src_host, std::span<uint8_t> &dst_ho
   }
 
   // Only copy back the non-halo region
-  status = pimCopyGridToHost(workingPimMemory, dst_host.data(), 1, partitioning.tileWidth + 1, 1, partitioning.tileHeight + 1);
+  status = pimCopyGridToHost(workingPimMemory, dst_host.data(),
+                             1, partitioning.tileWidth + 1,
+                             1, partitioning.tileHeight + 1,
+                             partitioning.tileWidthLast + 1, partitioning.tileHeightLast + 1);
   assert(status == PIM_OK);
 
   // dest should now have the results of the stencil computation

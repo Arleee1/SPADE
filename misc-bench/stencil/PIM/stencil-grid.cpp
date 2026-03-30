@@ -187,13 +187,16 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   const uint64_t maxTileHeight = coreHeight - extraRows;
   const uint64_t maxTileWidth = coreWidth - extraCols;
 
-  const GridPartitioning partitioning = calculateGridPartitioning(gridWidth, gridHeight, maxAvailableCores, maxTileWidth, maxTileHeight);
+  const GridPartitioning partitioning = calculateGridPartitioning(gridWidth, gridHeight, maxAvailableCores,
+                                                                  maxTileWidth, maxTileHeight);
 
   assert(partitioning.totalCores > 0);
   const uint64_t colsToAllocate = partitioning.tileWidth + extraCols;
+  const uint64_t coveredWidth = (partitioning.numCoresHorizontal - 1) * partitioning.tileWidth + partitioning.tileWidthLast;
+  const uint64_t coveredHeight = (partitioning.numCoresVertical - 1) * partitioning.tileHeight + partitioning.tileHeightLast;
 
-  assert(srcHost.size() == partitioning.numCoresVertical * partitioning.tileHeight * partitioning.numCoresHorizontal * partitioning.tileWidth);
-
+  assert(coveredWidth == gridWidth);
+  assert(coveredHeight == gridHeight);
 
   const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
   const float stencilAreaFloat = 1.0f / static_cast<float>(stencilAreaInt);
@@ -203,7 +206,8 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
 
   std::cout << "PIM Stencil for " << gridHeight << "x" << gridWidth << " grid with radius " << radius << " for " << iterations << " iterations" << std::endl;
   std::cout << "Using " << partitioning.totalCores << "/" << maxAvailableCores << " cores in a grid of " << partitioning.numCoresVertical << "x" << partitioning.numCoresHorizontal << " cores" << std::endl;
-  std::cout << "Tile size: " << partitioning.tileHeight << "x" << partitioning.tileWidth << std::endl;
+  std::cout << "Tile size: " << partitioning.tileHeight << "x" << partitioning.tileWidth
+            << " (last: " << partitioning.tileHeightLast << "x" << partitioning.tileWidthLast << ")" << std::endl;
 
   PimObjGrid workingPimMemory = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
                                   partitioning.tileHeight + 2*radius, colsToAllocate, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
@@ -217,7 +221,11 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   PimObjId tmpPim = tmpObjsGrid[0];
   PimObjId runningSum = tmpObjsGrid[1];
 
-  PimStatus status = pimCopyHostToGrid(srcHost.data(), workingPimMemory, radius, partitioning.tileWidth + radius, radius, partitioning.tileHeight + radius);
+  PimStatus status = pimCopyHostToGrid(srcHost.data(), workingPimMemory,
+                                       radius, partitioning.tileWidth + radius,
+                                       radius, partitioning.tileHeight + radius,
+                                       partitioning.tileWidthLast + radius,
+                                       partitioning.tileHeightLast + radius);
   assert(status == PIM_OK);
 
   status = pimCopyGridHalo(workingPimMemory, radius);
@@ -234,7 +242,11 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   }
 
   // Only copy back the non-halo region
-  status = pimCopyGridToHost(workingPimMemory, dstHost.data(), radius, partitioning.tileWidth + radius, radius, partitioning.tileHeight + radius);
+  status = pimCopyGridToHost(workingPimMemory, dstHost.data(),
+                             radius, partitioning.tileWidth + radius,
+                             radius, partitioning.tileHeight + radius,
+                             partitioning.tileWidthLast + radius,
+                             partitioning.tileHeightLast + radius);
   assert(status == PIM_OK);
 
   // dest should now have the results of the stencil computation

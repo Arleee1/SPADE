@@ -537,11 +537,11 @@ pimCmdCopyGrid::sanityCheck() const
                  numElementsPerCoreVertical);
       return false;
     }
-    if (m_idxEndXLast < m_idxBeginX) {
+    if (m_idxEndXLast != 0 && m_idxEndXLast < m_idxBeginX) {
       std::printf("PIM-Error: The last X index for grid copy is less than its beginning\n");
       return false;
     }
-    if (m_idxEndYLast < m_idxBeginY) {
+    if (m_idxEndYLast != 0 && m_idxEndYLast < m_idxBeginY) {
       std::printf("PIM-Error: The last Y index for grid copy is less than its beginning\n");
       return false;
     }

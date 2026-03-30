@@ -380,9 +380,13 @@ PimObjGrid pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t
 //! @param idxEndX: ending index in the X direction (columns) to copy, per core
 //! @param idxBeginY: starting index in the Y direction (rows) to copy, per core
 //! @param idxEndY: ending index in the Y direction (rows) to copy, per core
+//! @param idxEndXLast: ending X index, for last horizontal core column
+//! @param idxEndYLast: ending Y index, for last vertical core row
 //! @return Success or failure
-PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
-                                       uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
+PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid,
+                            uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                            uint64_t idxBeginY = 0, uint64_t idxEndY = 0,
+                            uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0);
 
 //! @brief Copies data from a PimObjGrid to a flattened 2D array in host memory
 //! @param srcGrid: PimObjGrid allocated by pimAllocGrid
@@ -391,9 +395,13 @@ PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX 
 //! @param idxEndX: ending index in the X direction (columns) to copy, per core
 //! @param idxBeginY: starting index in the Y direction (rows) to copy, per core
 //! @param idxEndY: ending index in the Y direction (rows) to copy, per core
+//! @param idxEndXLast: ending X index, for last horizontal core column
+//! @param idxEndYLast: ending Y index, for last vertical core row
 //! @return Success or failure
-PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
-                           uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
+PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
+                            uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                            uint64_t idxBeginY = 0, uint64_t idxEndY = 0,
+                            uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0);
 
 //! @brief Frees the PimObjGrid and all associated PimObjIds
 //! @param grid: PimObjGrid allocated by pimAllocGrid

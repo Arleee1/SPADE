@@ -187,18 +187,22 @@ pimCopyDeviceToHostWithType(PimCopyEnum copyType, PimObjId src, void* dest, uint
 }
 
 //! @brief  Copy data from a flattened 2D array in host memory to a PimObjGrid
-PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX, uint64_t idxEndX,
-                                       uint64_t idxBeginY, uint64_t idxEndY)
+PimStatus pimCopyHostToGrid(void* src, PimObjGrid& destGrid,
+                            uint64_t idxBeginX, uint64_t idxEndX,
+                            uint64_t idxBeginY, uint64_t idxEndY,
+                            uint64_t idxEndXLast, uint64_t idxEndYLast)
 {
-  bool ok = pimSim::get()->pimCopyHostToGrid(src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY);
+  bool ok = pimSim::get()->pimCopyHostToGrid(src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY, idxEndXLast, idxEndYLast);
   return ok ? PIM_OK : PIM_ERROR;
 }
 
 //! @brief  Copy data from a PimObjGrid to a flattened 2D array in host memory
-PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
-                           uint64_t idxBeginY, uint64_t idxEndY)
+PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
+                            uint64_t idxBeginX, uint64_t idxEndX,
+                            uint64_t idxBeginY, uint64_t idxEndY,
+                            uint64_t idxEndXLast, uint64_t idxEndYLast)
 {
-  bool ok = pimSim::get()->pimCopyGridToHost(srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);
+  bool ok = pimSim::get()->pimCopyGridToHost(srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY, idxEndXLast, idxEndYLast);
   return ok ? PIM_OK : PIM_ERROR;
 }
 

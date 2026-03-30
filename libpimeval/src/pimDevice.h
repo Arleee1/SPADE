@@ -87,10 +87,14 @@ public:
   bool pimCopyDeviceToMain(PimObjId src, void* dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
   bool pimCopyMainToDeviceWithType(PimCopyEnum copyType, void* src, PimObjId dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
   bool pimCopyDeviceToMainWithType(PimCopyEnum copyType, PimObjId src, void* dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
-  bool pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
-                                       uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
-  bool pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
-                           uint64_t idxBeginY = 0, uint64_t idxEndY = 0);
+  bool pimCopyHostToGrid(void* src, PimObjGrid& destGrid,
+                            uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                            uint64_t idxBeginY = 0, uint64_t idxEndY = 0,
+                            uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0);
+  bool pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
+                            uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
+                            uint64_t idxBeginY = 0, uint64_t idxEndY = 0,
+                            uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0);
   bool pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo);
   bool pimCopyDeviceToDevice(PimObjId src, PimObjId dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
 

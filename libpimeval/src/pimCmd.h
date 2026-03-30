@@ -212,13 +212,13 @@ class pimCmdCopyGrid : public pimCmd
 {
 public:
   pimCmdCopyGrid(PimCmdEnum cmdType, PimCopyEnum copyType, void* src, PimObjGrid& destGrid, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
-                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0)
+                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0, uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0)
     : pimCmd(PimCmdEnum::COPY_GRID_H2D), m_copyType(copyType), m_ptr(src), m_destGrid(destGrid), m_idxBeginX(idxBeginX), m_idxEndX(idxEndX),
-      m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL) {}
+      m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_idxEndXLast(idxEndXLast), m_idxEndYLast(idxEndYLast), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL && idxEndXLast == 0ULL && idxEndYLast == 0ULL) {}
   pimCmdCopyGrid(PimCmdEnum cmdType, PimCopyEnum copyType, PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
-                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0)
+                                        uint64_t idxBeginY = 0, uint64_t idxEndY = 0, uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0)
     : pimCmd(PimCmdEnum::COPY_GRID_D2H), m_copyType(copyType), m_ptr(dest), m_srcGrid(srcGrid), m_idxBeginX(idxBeginX), m_idxEndX(idxEndX),
-      m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL) {}
+      m_idxBeginY(idxBeginY), m_idxEndY(idxEndY), m_idxEndXLast(idxEndXLast), m_idxEndYLast(idxEndYLast), m_copyFullRange(idxEndX == 0ULL && idxEndY == 0ULL && idxEndXLast == 0ULL && idxEndYLast == 0ULL) {}
 
   virtual ~pimCmdCopyGrid() {}
   //! @todo grid: copy to grid, copy from grid
@@ -234,6 +234,8 @@ protected:
   uint64_t m_idxEndX = 0;
   uint64_t m_idxBeginY = 0;
   uint64_t m_idxEndY = 0;
+  uint64_t m_idxEndXLast = 0;
+  uint64_t m_idxEndYLast = 0;
   bool m_copyFullRange = false;
 };
 

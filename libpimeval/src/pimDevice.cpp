@@ -343,25 +343,29 @@ pimDevice::pimCopyDeviceToMainWithType(PimCopyEnum copyType, PimObjId src, void*
 
 //! @brief  Copy data from host to PimObjGrid
 bool
-pimDevice::pimCopyHostToGrid(void* src, PimObjGrid& destGrid, uint64_t idxBeginX, uint64_t idxEndX,
-                                       uint64_t idxBeginY, uint64_t idxEndY)
+pimDevice::pimCopyHostToGrid(void* src, PimObjGrid& destGrid,
+                            uint64_t idxBeginX, uint64_t idxEndX,
+                            uint64_t idxBeginY, uint64_t idxEndY,
+                            uint64_t idxEndXLast, uint64_t idxEndYLast)
 {
   assert(!destGrid.empty());
   PimCopyEnum copyType = m_resMgr->isHLayoutObj(destGrid[0]) ? PIM_COPY_H : PIM_COPY_V;
   std::unique_ptr<pimCmd> cmd =
-    std::make_unique<pimCmdCopyGrid>(PimCmdEnum::COPY_H2D, copyType, src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY);
+    std::make_unique<pimCmdCopyGrid>(PimCmdEnum::COPY_H2D, copyType, src, destGrid, idxBeginX, idxEndX, idxBeginY, idxEndY, idxEndXLast, idxEndYLast);
   return executeCmd(std::move(cmd));
 }
 
 //! @brief  Copy data from PimObjGrid to host
 bool
-pimDevice::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest, uint64_t idxBeginX, uint64_t idxEndX,
-                           uint64_t idxBeginY, uint64_t idxEndY)
+pimDevice::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
+                            uint64_t idxBeginX, uint64_t idxEndX,
+                            uint64_t idxBeginY, uint64_t idxEndY,
+                            uint64_t idxEndXLast, uint64_t idxEndYLast)
 {
   assert(!srcGrid.empty());
   PimCopyEnum copyType = m_resMgr->isHLayoutObj(srcGrid[0]) ? PIM_COPY_H : PIM_COPY_V;
   std::unique_ptr<pimCmd> cmd =
-    std::make_unique<pimCmdCopyGrid>(PimCmdEnum::COPY_D2H, copyType, srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY);
+    std::make_unique<pimCmdCopyGrid>(PimCmdEnum::COPY_D2H, copyType, srcGrid, dest, idxBeginX, idxEndX, idxBeginY, idxEndY, idxEndXLast, idxEndYLast);
   return executeCmd(std::move(cmd));
 }
 

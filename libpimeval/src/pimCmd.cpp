@@ -395,33 +395,40 @@ pimCmdCopyGrid::execute()
     const pimObjInfo& refObj = m_device->getResMgr()->getObjInfo(pimGrid[0]);
     const uint64_t numCoresVertical = refObj.getNumCoresVertical();
     const uint64_t numCoresHorizontal = refObj.getNumCoresHorizontal();
-    const uint64_t numCoresUsed = refObj.getNumCoresUsed();
+    const uint64_t numCoresUsed = numCoresVertical * numCoresHorizontal;
     const uint64_t numElementsPerCoreVertical = pimGrid.size();
     const uint64_t numElementsPerCoreHorizontal = refObj.getNumElements() / numCoresUsed;
-    //! @todo grid: could be full range in one direction but not the other, need to handle that case
-    const uint64_t idxBeginX = m_copyFullRange ? 0 : m_idxBeginX;
-    const uint64_t idxEndX = m_copyFullRange ? numElementsPerCoreHorizontal : m_idxEndX;
-    const uint64_t idxBeginY = m_copyFullRange ? 0 : m_idxBeginY;
-    const uint64_t idxEndY = m_copyFullRange ? numElementsPerCoreVertical : m_idxEndY;
+    const uint64_t idxBeginX = m_idxBeginX;
+    const uint64_t idxEndX = (m_idxEndX == 0ULL) ? numElementsPerCoreHorizontal : m_idxEndX;
+    const uint64_t idxBeginY = m_idxBeginY;
+    const uint64_t idxEndY = (m_idxEndY == 0ULL) ? numElementsPerCoreVertical : m_idxEndY;
+    const uint64_t idxEndXLast = (m_idxEndXLast == 0ULL) ? idxEndX : m_idxEndXLast;
+    const uint64_t idxEndYLast = (m_idxEndYLast == 0ULL) ? idxEndY : m_idxEndYLast;
     const uint64_t bytesPerElement = (refObj.getBitsPerElement(PimBitWidth::HOST) + 7) / 8;
-    const uint64_t hostElementsPerCoreVertical = m_copyFullRange ? numElementsPerCoreVertical : (idxEndY - idxBeginY);
-    const uint64_t hostElementsPerCoreHorizontal = m_copyFullRange ? numElementsPerCoreHorizontal : (idxEndX - idxBeginX);
-    const uint64_t hostCols = numCoresHorizontal * hostElementsPerCoreHorizontal;
+    const uint64_t hostElementsPerCoreVertical = idxEndY - idxBeginY;
+    const uint64_t hostElementsPerCoreHorizontal = idxEndX - idxBeginX;
+    const uint64_t hostElementsPerCoreHorizontalLast = idxEndXLast - idxBeginX;
+    const uint64_t hostCols = (numCoresHorizontal - 1) * hostElementsPerCoreHorizontal + hostElementsPerCoreHorizontalLast;
     uint8_t* hostBytes = static_cast<uint8_t*>(m_ptr);
 
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (uint64_t coreRow = 0; coreRow < numCoresVertical; ++coreRow) {
-      for (uint64_t pimY = idxBeginY; pimY < idxEndY; ++pimY) {
+      const bool isLastCoreRow = (coreRow + 1 == numCoresVertical);
+      const uint64_t idxEndYCurr = isLastCoreRow ? idxEndYLast : idxEndY;
+      const uint64_t hostRowBase = coreRow * hostElementsPerCoreVertical;
+      for (uint64_t pimY = idxBeginY; pimY < idxEndYCurr; ++pimY) {
         pimObjInfo &objCopy = m_device->getResMgr()->getObjInfo(pimGrid[pimY]);
         const uint64_t hostY = pimY - idxBeginY;
         for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
+          const bool isLastCoreCol = (coreCol + 1 == numCoresHorizontal);
+          const uint64_t idxEndXCurr = isLastCoreCol ? idxEndXLast : idxEndX;
           const uint64_t coreIndex = coreRow * numCoresHorizontal + coreCol;
           const uint64_t coreStartIndex = coreIndex * numElementsPerCoreHorizontal;
           const uint64_t destIdxBegin = coreStartIndex + idxBeginX;
-          const uint64_t destIdxEnd = coreStartIndex + idxEndX;
-          const uint64_t hostIndex = (coreRow * hostElementsPerCoreVertical + hostY) * hostCols
+          const uint64_t destIdxEnd = coreStartIndex + idxEndXCurr;
+          const uint64_t hostIndex = (hostRowBase + hostY) * hostCols
                               + (coreCol * hostElementsPerCoreHorizontal);
           uint8_t* hostPtr = hostBytes + hostIndex * bytesPerElement;
           if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
@@ -500,22 +507,42 @@ pimCmdCopyGrid::sanityCheck() const
   if (!m_copyFullRange) {
     uint64_t numElementsPerCoreHorizontal = numElements / numCoresUsed;
 
-    if (m_idxBeginX > numElementsPerCoreHorizontal || m_idxEndX > numElementsPerCoreHorizontal) {
+    if (m_idxEndX > numElementsPerCoreHorizontal) {
       std::printf("PIM-Error: The X range for grid copy is out of bounds (max: %" PRIu64 ")\n",
                   numElementsPerCoreHorizontal);
       return false;
     }
-    if (m_idxBeginY > numElementsPerCoreVertical || m_idxEndY > numElementsPerCoreVertical) {
+    if (m_idxEndY > numElementsPerCoreVertical) {
       std::printf("PIM-Error: The Y range for grid copy is out of bounds (max: %" PRIu64 ")\n",
                   numElementsPerCoreVertical);
       return false;
     }
+
     if (m_idxEndX < m_idxBeginX) {
       std::printf("PIM-Error: The end of the X range for grid copy is less than its beginning\n");
       return false;
     }
     if (m_idxEndY < m_idxBeginY) {
       std::printf("PIM-Error: The end of the Y range for grid copy is less than its beginning\n");
+      return false;
+    }
+
+    if (m_idxEndXLast > numElementsPerCoreHorizontal) {
+      std::printf("PIM-Error: The last X index for grid copy is out of bounds (max: %" PRIu64 ")\n",
+                  numElementsPerCoreHorizontal);
+      return false;
+    }
+    if (m_idxEndYLast > numElementsPerCoreVertical) {
+      std::printf("PIM-Error: The last Y index for grid copy is out of bounds (max: %" PRIu64 ")\n",
+                 numElementsPerCoreVertical);
+      return false;
+    }
+    if (m_idxEndXLast < m_idxBeginX) {
+      std::printf("PIM-Error: The last X index for grid copy is less than its beginning\n");
+      return false;
+    }
+    if (m_idxEndYLast < m_idxBeginY) {
+      std::printf("PIM-Error: The last Y index for grid copy is less than its beginning\n");
       return false;
     }
   }
@@ -527,49 +554,61 @@ pimCmdCopyGrid::sanityCheck() const
 bool
 pimCmdCopyGrid::updateStats() const
 {
-  if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
-    const pimObjInfo &objDest0 = m_device->getResMgr()->getObjInfo(m_destGrid[0]);
-    uint64_t numElementsTotal = 0;
-    if (m_copyFullRange) {
-      numElementsTotal = objDest0.getNumElements() * m_destGrid.size();
-    } else {
-      uint64_t numCoresUsed = objDest0.getNumCoresUsed();
-      uint64_t numElementsX = m_idxEndX - m_idxBeginX;
-      uint64_t numElementsY = m_idxEndY - m_idxBeginY;
-      numElementsTotal = numCoresUsed * numElementsX * numElementsY;
+  const PimObjGrid& pimGrid = [&]() {
+    if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
+      return m_destGrid;
     }
-    unsigned bitsPerElement = objDest0.getBitsPerElement(PimBitWidth::ACTUAL);
-    pimeval::perfEnergy mPerfEnergy = pimSim::get()->getPerfEnergyModel()->getPerfEnergyForBytesTransfer(
-        PimCmdEnum::COPY_H2D, numElementsTotal * bitsPerElement / 8);
-    pimSim::get()->getStatsMgr()->recordCopyMainToDevice(numElementsTotal * bitsPerElement, mPerfEnergy);
+    else if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
+      return m_srcGrid;
+    }
+    else {
+      assert(0);
+    }
+    }();
 
-    if (m_debugCmds) {
-      std::printf("PIM-Cmd: Copied %" PRIu64 " elements of %u bits from host to PIM grid\n",
-                  numElementsTotal, bitsPerElement);
-    }
-  } else if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
-    const pimObjInfo &objSrc0 = m_device->getResMgr()->getObjInfo(m_srcGrid[0]);
-    uint64_t numElementsTotal = 0;
-    if (m_copyFullRange) {
-      numElementsTotal = objSrc0.getNumElements() * m_srcGrid.size();
-    } else {
-      uint64_t numCoresUsed = objSrc0.getNumCoresUsed();
-      uint64_t numElementsX = m_idxEndX - m_idxBeginX;
-      uint64_t numElementsY = m_idxEndY - m_idxBeginY;
-      numElementsTotal = numCoresUsed * numElementsX * numElementsY;
-    }
-    unsigned bitsPerElement = objSrc0.getBitsPerElement(PimBitWidth::ACTUAL);
+  const pimObjInfo& refObj = m_device->getResMgr()->getObjInfo(pimGrid[0]);
+  const uint64_t numCoresVertical = refObj.getNumCoresVertical();
+  const uint64_t numCoresHorizontal = refObj.getNumCoresHorizontal();
+  const uint64_t numCoresUsed = numCoresVertical * numCoresHorizontal;
+  const uint64_t numElementsPerCoreVertical = pimGrid.size();
+  const uint64_t numElementsPerCoreHorizontal = refObj.getNumElements() / numCoresUsed;
+  const uint64_t idxBeginX = m_idxBeginX;
+  const uint64_t idxEndX = (m_idxEndX == 0ULL) ? numElementsPerCoreHorizontal : m_idxEndX;
+  const uint64_t idxBeginY = m_idxBeginY;
+  const uint64_t idxEndY = (m_idxEndY == 0ULL) ? numElementsPerCoreVertical : m_idxEndY;
+  const uint64_t idxEndXLast = (m_idxEndXLast == 0ULL) ? idxEndX : m_idxEndXLast;
+  const uint64_t idxEndYLast = (m_idxEndYLast == 0ULL) ? idxEndY : m_idxEndYLast;
+  const uint64_t hostElementsPerCoreVertical = idxEndY - idxBeginY;
+  const uint64_t hostElementsPerCoreHorizontal = idxEndX - idxBeginX;
+  const uint64_t hostElementsPerCoreHorizontalLast = idxEndXLast - idxBeginX;
+  const uint64_t hostElementsPerCoreVerticalLast = idxEndYLast - idxBeginY;
+  const uint64_t hostCols = (numCoresHorizontal - 1) * hostElementsPerCoreHorizontal + hostElementsPerCoreHorizontalLast;
+  const uint64_t hostRows = (numCoresVertical - 1) * hostElementsPerCoreVertical + hostElementsPerCoreVerticalLast;
+  const uint64_t numElementsTotal = hostRows * hostCols;
+  const unsigned bitsPerElement = refObj.getBitsPerElement(PimBitWidth::ACTUAL);
+
+  if (m_cmdType == PimCmdEnum::COPY_GRID_D2H) {
     pimeval::perfEnergy mPerfEnergy = pimSim::get()->getPerfEnergyModel()->getPerfEnergyForBytesTransfer(
-        PimCmdEnum::COPY_D2H, numElementsTotal * bitsPerElement / 8);
+      PimCmdEnum::COPY_D2H, numElementsTotal * bitsPerElement / 8);
     pimSim::get()->getStatsMgr()->recordCopyDeviceToMain(numElementsTotal * bitsPerElement, mPerfEnergy);
 
     if (m_debugCmds) {
       std::printf("PIM-Cmd: Copied %" PRIu64 " elements of %u bits from PIM grid to host\n",
-                  numElementsTotal, bitsPerElement);
+        numElementsTotal, bitsPerElement);
+    }
+  } else if (m_cmdType == PimCmdEnum::COPY_GRID_H2D) {
+    pimeval::perfEnergy mPerfEnergy = pimSim::get()->getPerfEnergyModel()->getPerfEnergyForBytesTransfer(
+      PimCmdEnum::COPY_H2D, numElementsTotal * bitsPerElement / 8);
+    pimSim::get()->getStatsMgr()->recordCopyMainToDevice(numElementsTotal * bitsPerElement, mPerfEnergy);
+
+    if (m_debugCmds) {
+      std::printf("PIM-Cmd: Copied %" PRIu64 " elements of %u bits from host to PIM grid\n",
+        numElementsTotal, bitsPerElement);
     }
   } else {
     assert(0);
   }
+
   return true;
 }
 

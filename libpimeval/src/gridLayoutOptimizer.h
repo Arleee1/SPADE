@@ -22,6 +22,10 @@ struct TotalMoveCostParams {
   uint64_t banksPerRank;
   //! The total number of ranks in the system
   uint64_t ranks;
+  //! The target total grid width in subarray units
+  uint64_t totalGridWidth;
+  //! The target total grid height in subarray units
+  uint64_t totalGridHeight;
   //! The halo radius for the stencil computation
   uint64_t radius;
   //! The cost to transfer one element between subarrays

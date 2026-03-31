@@ -32,6 +32,8 @@ int main()
               16,    // subarraysPerBank
               16,    // banksPerRank
               16,    // ranks
+              64,    // totalGridWidth (in subarrays)
+              64,    // totalGridHeight (in subarrays)
               1,     // radius
               1.0,   // transferCostSubarrayToSubarray
               20.0,  // transferCostBankToBank
@@ -46,6 +48,8 @@ int main()
               32,
               16,
               8,
+              64,
+              64,
               1,
               1.0,
               12.0,
@@ -60,6 +64,8 @@ int main()
               16,
               32,
               8,
+              64,
+              64,
               2,
               1.0,
               25.0,
@@ -74,6 +80,8 @@ int main()
               64,
               16,
               16,
+              128,
+              128,
               1,
               1.0,
               5.0,

@@ -80,12 +80,28 @@ int main()
               64,
               16,
               16,
-              128,
-              128,
+              10,
+              50,
               1,
               1.0,
               5.0,
               300.0,
+          },
+      },
+      {
+          "Constant communication penalty",
+          {
+              64,
+              64,
+              64,
+              16,
+              16,
+              10,
+              50,
+              1,
+              1.0,
+              1.0,
+              1.0,
           },
       },
   };
@@ -97,21 +113,21 @@ int main()
     std::cout << "\n===== Scenario " << (i + 1) << ": " << scenario.name << " =====" << std::endl;
 
     try {
-      const std::vector<GridLayoutConfig> rankedLayouts = rankGridLayouts(scenario.params);
-      if (rankedLayouts.empty()) {
-        ok = false;
-        std::cout << "No valid configurations found" << std::endl;
-        continue;
-      }
-
-      const GridLayoutConfig& best = rankedLayouts.front();
-      std::cout << "OPTIMAL CONFIGURATION:" << std::endl;
-      std::cout << "  subarray_grid_width = " << best.subarrayGridWidth << std::endl;
-      std::cout << "  bank_grid_width = " << best.bankGridWidth << std::endl;
-      std::cout << "  rank_grid_width = " << best.rankGridWidth << std::endl;
-      std::cout << "  Total move cost = " << best.cost << std::endl;
-
       if (kShowTop10Configurations) {
+        const std::vector<GridLayoutConfig> rankedLayouts = rankGridLayouts(scenario.params);
+        if (rankedLayouts.empty()) {
+          ok = false;
+          std::cout << "No valid configurations found" << std::endl;
+          continue;
+        }
+
+        const GridLayoutConfig& best = rankedLayouts.front();
+        std::cout << "OPTIMAL CONFIGURATION:" << std::endl;
+        std::cout << "  subarray_grid_width = " << best.subarrayGridWidth << std::endl;
+        std::cout << "  bank_grid_width = " << best.bankGridWidth << std::endl;
+        std::cout << "  rank_grid_width = " << best.rankGridWidth << std::endl;
+        std::cout << "  Total move cost = " << best.cost << std::endl;
+
         std::cout << std::endl;
         std::cout << "Top 10 configurations:" << std::endl;
         const std::size_t topK = std::min<std::size_t>(10, rankedLayouts.size());
@@ -122,6 +138,13 @@ int main()
                     << ", bank=" << config.bankGridWidth
                     << ", rank=" << config.rankGridWidth << std::endl;
         }
+      } else {
+        const GridLayoutConfig best = optimizeGridLayout(scenario.params);
+        std::cout << "OPTIMAL CONFIGURATION:" << std::endl;
+        std::cout << "  subarray_grid_width = " << best.subarrayGridWidth << std::endl;
+        std::cout << "  bank_grid_width = " << best.bankGridWidth << std::endl;
+        std::cout << "  rank_grid_width = " << best.rankGridWidth << std::endl;
+        std::cout << "  Total move cost = " << best.cost << std::endl;
       }
     } catch (const std::exception& ex) {
       ok = false;

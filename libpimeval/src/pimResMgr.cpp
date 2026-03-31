@@ -829,7 +829,6 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
     }
   }
   return objIds;
-  //! @todo grid: pim Alloc Grid - done? check work todo
 }
 
 //! @brief  Allocate a new PIM Grid object associated with an existing object

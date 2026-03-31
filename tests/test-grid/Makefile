@@ -6,10 +6,15 @@
 PROJ_ROOT = ../..
 include ${PROJ_ROOT}/Makefile.common
 
-SRCS := test-grid-copy.cpp test-grid-ops.cpp test-grid-large-alloc.cpp test-grid-copy-halo.cpp test-grid-shift.cpp test-grid-alloc-associated.cpp
+SRCS := $(sort $(wildcard *.cpp))
 EXECS := $(SRCS:.cpp=.out)
+OPTIMIZE_LAYOUT_HDR_DIR := $(PROJ_ROOT)/libpimeval/src
+OPTIMIZE_LAYOUT_SRC := $(PROJ_ROOT)/libpimeval/src/gridLayoutOptimizer.cpp
 
 debug perf dramsim3_integ: $(EXECS)
+
+test-optimize-layout.out: test-optimize-layout.cpp $(OPTIMIZE_LAYOUT_HDR_DIR)/gridLayoutOptimizer.h $(DEPS)
+	$(CXX) $< $(CXXFLAGS) -I$(OPTIMIZE_LAYOUT_HDR_DIR) -o $@
 
 %.out: %.cpp $(DEPS)
 	$(CXX) $< $(CXXFLAGS) -o $@

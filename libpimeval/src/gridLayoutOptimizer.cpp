@@ -275,9 +275,12 @@ void forEachGridLayoutCandidate(const GridDivisors& divisors,
             totalHeightInSubarrays < params.totalGridHeight) {
           continue;
         }
-
+        const uint64_t bankTileWidth = subarrayGridWidth;
+        const uint64_t bankTileHeight = subarrayGridHeight;
+        const uint64_t rankTileWidth = bankGridWidth * bankTileWidth;
+        const uint64_t rankTileHeight = bankGridHeight * bankTileHeight;
         const double cost = totalMoveCost(subarrayGridWidth, bankGridWidth, rankGridWidth, params);
-        consume(GridLayoutConfig{cost, subarrayGridWidth, bankGridWidth, rankGridWidth});
+        consume(GridLayoutConfig{cost, subarrayGridWidth, bankGridWidth, rankGridWidth, bankTileWidth, bankTileHeight, rankTileWidth, rankTileHeight});
         hasCandidate = true;
       }
     }

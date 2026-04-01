@@ -324,6 +324,12 @@ private:
   pimRegion findAvailRegionOnCore(PimCoreId coreId, unsigned numAllocRows, unsigned numAllocCols) const;
   std::vector<PimCoreId> getCoreIdsSortedByLeastUsage() const;
   unsigned checkPaddingAllocAssoc(const char* cmdName, PimAllocEnum allocType, PimDataType dataType, unsigned bitsPerElement, unsigned bitsPerEElementAssoc) const;
+  std::vector<PimCoreId> getCoresForGrid(
+                                          size_t numCoresVertical,
+                                          size_t numCoresHorizontal,
+                                          size_t numElementsPerCoreVertical,
+                                          size_t numElementsPerCoreHorizontal,
+                                          PimAllocationStrategy allocationStrategy) const;
 
   //! @class  coreUsage
   //! @brief  Track row usage for allocation

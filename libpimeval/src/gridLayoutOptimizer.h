@@ -41,6 +41,10 @@ struct GridLayoutConfig {
   uint64_t subarrayGridWidth;
   uint64_t bankGridWidth;
   uint64_t rankGridWidth;
+  uint64_t bankTileWidth;
+  uint64_t bankTileHeight;
+  uint64_t rankTileWidth;
+  uint64_t rankTileHeight;
 };
 
 //! @brief Enumerate all valid layouts sorted by cost in ascending order.

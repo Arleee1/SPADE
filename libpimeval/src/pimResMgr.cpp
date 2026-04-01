@@ -4,14 +4,15 @@
 // This file is licensed under the MIT License.
 // See the LICENSE file in the root of this repository for more details.
 
-#include "pimResMgr.h"       // for pimResMgr
-#include "pimDevice.h"       // for pimDevice
-#include <cstdio>            // for printf
-#include <algorithm>         // for sort, prev
-#include <stdexcept>         // for throw, invalid_argument
-#include <memory>            // for make_unique
-#include <cassert>           // for assert
-#include <string>            // for string
+#include "pimResMgr.h"            // for pimResMgr
+#include "pimDevice.h"            // for pimDevice
+#include "gridLayoutOptimizer.h"  // for optimizeGridLayout
+#include <cstdio>                 // for printf
+#include <algorithm>              // for sort, prev
+#include <stdexcept>              // for throw, invalid_argument
+#include <memory>                 // for make_unique
+#include <cassert>                // for assert
+#include <string>                 // for string
 
 
 //! @brief  Print info of a PIM region
@@ -679,6 +680,84 @@ pimResMgr::pimAllocAssociated(PimObjId assocId, PimDataType dataType)
   return objId;
 }
 
+//! @brief  Get cores to use for grid
+std::vector<PimCoreId>
+pimResMgr::getCoresForGrid(
+                            size_t numCoresVertical,
+                            size_t numCoresHorizontal,
+                            size_t numElementsPerCoreVertical,
+                            size_t numElementsPerCoreHorizontal,
+                            PimAllocationStrategy allocationStrategy) const
+{
+  const uint64_t numCores = numCoresVertical * numCoresHorizontal;
+  if (allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_LEAST_USED_CORES) {
+    std::vector<PimCoreId> sortedCoreId = getCoreIdsSortedByLeastUsage();
+    if (numCores > sortedCoreId.size()) {
+      printf("PIM-Error: getCoresForGrid: Attempting to allocate %u cores when device only has %lu cores\n",
+            numCores, sortedCoreId.size());
+      return {};
+    }
+    return std::vector<PimCoreId>(sortedCoreId.begin(), sortedCoreId.begin() + numCores);
+  } else if (allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT) {
+    const uint64_t subarraysPerBank = m_device->getNumSubarrayPerBank();
+    const uint64_t banksPerRank = m_device->getNumBankPerRank();
+    const uint64_t ranks = m_device->getNumRanks();
+
+    TotalMoveCostParams params;
+    params.subarrayBlockWidth = numElementsPerCoreHorizontal;
+    params.subarrayBlockHeight = numElementsPerCoreVertical;
+    params.subarraysPerBank = m_device->isBankCoreDevice() ? subarraysPerBank : 1;
+    params.banksPerRank = banksPerRank;
+    params.ranks = ranks;
+    params.totalGridWidth = numCoresHorizontal;
+    params.totalGridHeight = numCoresVertical;
+    //! @todo grid: fix
+    params.radius = 1;
+    params.transferCostSubarrayToSubarray = 1;
+    params.transferCostRankToRank = 10;
+    params.transferCostRankToRank = 100;
+    const GridLayoutConfig layout = optimizeGridLayout(params);
+
+    const uint64_t numRankHorizontal = layout.rankGridWidth;
+    const uint64_t numBankHorizontalPerRank = layout.bankGridWidth;
+    const uint64_t numSubarrayHorizontalPerBank = layout.subarrayGridWidth;
+
+    std::vector<PimCoreId> cores(numCores);
+    for (uint64_t coreRow = 0; coreRow < numCoresVertical; ++coreRow) {
+      const uint64_t rankRow = coreRow / layout.rankTileHeight;
+      const uint64_t bankRow = (coreRow % layout.rankTileHeight) / layout.bankTileHeight;
+      const uint64_t subarrayRow = coreRow % layout.bankTileHeight;
+      for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
+        const uint64_t coreIdx = coreRow * numCoresHorizontal + coreCol;
+
+        const uint64_t rankCol = coreCol / layout.rankTileWidth;
+        const uint64_t bankCol = (coreCol % layout.rankTileWidth) / layout.bankTileWidth;
+        const uint64_t subarrayCol = coreCol % layout.bankTileWidth;
+
+        const unsigned rankId = rankRow * numRankHorizontal + rankCol;
+        const unsigned bankId = bankRow * numBankHorizontalPerRank + bankCol;
+        const unsigned subarrayId = subarrayRow * numSubarrayHorizontalPerBank + subarrayCol;
+
+        PimCoreLocation loc;
+        if(m_device->isBankCoreDevice()) {
+          BankCoreLocation bankLoc{bankId};
+          loc = {rankId, 0, bankLoc};
+        } else {
+          SubarrayCoreLocation subarrayLoc{bankId, subarrayId};
+          loc = {rankId, 0, subarrayLoc};
+        }
+
+        // coreLocations[coreIdx] = PimCoreLocation{rankId, bankId, coreRow, coreCol};
+        cores[coreIdx] = m_device->getCoreId(loc);
+      }
+    }
+    return cores;
+  } else {
+    printf("PIM-Error: pimAllocGrid: Unsupported grid allocation strategy\n");
+    return {};
+  }
+}
+
 //! @brief  Allocate a new PIM object with detailed parameters
 PimObjGrid
 pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
@@ -740,18 +819,6 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
            rowsPerCorePerObjToAlloc, colsPerCoreToAlloc, numElementsPerCoreHorizontal);
   }
 
-  std::vector<PimCoreId> sortedCoreId = getCoreIdsSortedByLeastUsage();
-
-  // check if most used core needed has room
-  // if there is room in this core, then there is enough room in all other cores used
-  // assumes all cores have the same capacity
-  //! @todo grid: use allocation strategy when selecting core
-  unsigned lastRows = m_coreUsage.at(sortedCoreId[numCoresToAlloc-1])->getNumRowsPerCore();
-  unsigned lastUsed = m_coreUsage.at(sortedCoreId[numCoresToAlloc-1])->getTotRowsInUse();
-  if(lastUsed + rowsPerCoreToAlloc > lastRows) {
-    printf("PIM-Error: pimAllocGrid: Attempting to allocate too many rows (%u requested, %u available)\n", rowsPerCoreToAlloc, lastRows - lastUsed);
-    return {};
-  }
   unsigned numCols = m_device->getNumCols();
   if(colsPerCoreToAlloc > numCols) {
     printf("PIM-Error: pimAllocGrid: Attempting to allocate too many columns (%u requested, %u available)\n", colsPerCoreToAlloc, numCols);
@@ -765,16 +832,23 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
     m_availObjId++;
   }
 
+  const std::vector<PimCoreId>& coreIds = getCoresForGrid(
+                                            numCoresVertical,
+                                            numCoresHorizontal,
+                                            numElementsPerCoreVertical,
+                                            numElementsPerCoreHorizontal,
+                                            allocationStrategy);
+
   // create new regions
   bool success = true;
   for (unsigned i = 0; i < numCoresToAlloc; ++i) {
-    m_coreUsage.at(sortedCoreId[i])->newAllocStart();
+    m_coreUsage.at(coreIds[i])->newAllocStart();
   }
   if (allocType == PIM_ALLOC_V || allocType == PIM_ALLOC_V1 || allocType == PIM_ALLOC_H || allocType == PIM_ALLOC_H1) {
     for (uint64_t newObjIdx = 0; newObjIdx < numElementsPerCoreVertical; ++newObjIdx) {
       uint64_t elemIdx = 0;
       for (uint64_t sortedCoreIdx = 0; sortedCoreIdx < numCoresToAlloc; ++sortedCoreIdx) {
-        PimCoreId coreId = sortedCoreId[sortedCoreIdx];
+        PimCoreId coreId = coreIds[sortedCoreIdx];
         // unsigned numColsToAlloc = (i == numRegions - 1 ? numColsToAllocLast : numCols);
         // unsigned numElemInRegion = (i == numRegions - 1 ? numElemPerRegionLast : numElemPerRegion);
         pimRegion newRegion = findAvailRegionOnCore(coreId, rowsPerCorePerObjToAlloc, colsPerCoreToAlloc);
@@ -796,7 +870,7 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
     }
   }
   for (unsigned i = 0; i < numCoresToAlloc; ++i) {
-    m_coreUsage.at(sortedCoreId[i])->newAllocEnd(success); // rollback if failed
+    m_coreUsage.at(coreIds[i])->newAllocEnd(success); // rollback if failed
   }
 
   if (!success) {

@@ -33,6 +33,8 @@ typedef struct Params
   uint64_t radius;
   const char *configFile;
   const char *inputFile;
+  const char *allocStrategyName;
+  PimAllocationStrategy allocStrategy;
   bool shouldVerify;
 } Params;
 
@@ -47,6 +49,7 @@ void usage()
           "\n    -r    stencil radius (default=2)"
           "\n    -c    dramsim config file"
           "\n    -i    input file containing a 2d array (default=random)"
+          "\n    -a    allocation strategy (options: STENCIL_9_POINT, LEAST_USED_CORES) (default=STENCIL_9_POINT)"
           "\n    -v    t = verifies PIM output with host output. (default=false)"
           "\n");
 }
@@ -60,10 +63,12 @@ struct Params getInputParams(int argc, char **argv)
   p.radius = 2;
   p.configFile = nullptr;
   p.inputFile = nullptr;
+  p.allocStrategyName = "STENCIL_9_POINT";
+  p.allocStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT;
   p.shouldVerify = false;
 
   int opt;
-  while ((opt = getopt(argc, argv, "h:n:x:y:r:c:i:v:")) >= 0)
+  while ((opt = getopt(argc, argv, "h:n:x:y:r:c:i:a:v:")) >= 0)
   {
     switch (opt)
     {
@@ -88,6 +93,18 @@ struct Params getInputParams(int argc, char **argv)
       break;
     case 'i':
       p.inputFile = optarg;
+      break;
+    case 'a':
+      if (strcmp(optarg, "STENCIL_9_POINT") == 0) {
+        p.allocStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT;
+      } else if (strcmp(optarg, "LEAST_USED_CORES") == 0) {
+        p.allocStrategy = PIM_ALLOCATION_STRATEGY_LEAST_USED_CORES;
+      } else {
+        fprintf(stderr, "\nUnrecognized allocation strategy!\n");
+        usage();
+        exit(0);
+      }
+      p.allocStrategyName = optarg;
       break;
     case 'v':
       p.shouldVerify = (*optarg == 't');
@@ -178,7 +195,7 @@ void computeStencilChunkIteration(std::span<PimObjId> workingPimMemory, std::spa
 }
 
 void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uint64_t gridWidth, const uint64_t iterations, const uint64_t radius,
-              const uint64_t maxAvailableCores, const uint64_t coreHeight, const uint64_t coreWidth) {
+              const uint64_t maxAvailableCores, const uint64_t coreHeight, const uint64_t coreWidth, const PimAllocationStrategy allocStrategy) {
   assert(srcHost.size() == dstHost.size());
 
   const uint64_t gridHeight = srcHost.size() / gridWidth;
@@ -210,7 +227,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
             << " (last: " << partitioning.tileHeightLast << "x" << partitioning.tileWidthLast << ")" << std::endl;
 
   PimObjGrid workingPimMemory = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
-                                  partitioning.tileHeight + 2*radius, colsToAllocate, PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
+                                  partitioning.tileHeight + 2*radius, colsToAllocate, allocStrategy);
   assert(partitioning.tileHeight + 2*radius == workingPimMemory.size());
 
   PimObjGrid rowsInSumCircularQueue = pimAllocGridAssociated(workingPimMemory[0], PIM_FP32, 2*radius+1);
@@ -272,6 +289,7 @@ int main(int argc, char* argv[])
 
   std::cout << "Running PIM stencil for grid: " << params.gridHeight << "x" << params.gridWidth << std::endl;
   std::cout << "Stencil Radius: " << params.radius << ", Number of Iterations: " << params.iterations << std::endl;
+  std::cout << "Allocation Strategy: " << params.allocStrategyName << std::endl;
 
   std::vector<float> x_(params.gridHeight * params.gridWidth);
   std::vector<float> y_(x_.size());
@@ -338,7 +356,7 @@ int main(int argc, char* argv[])
   std::span<float> x(x_);
   std::span<float> y(y_);
 
-  stencil(x, y, params.gridWidth, params.iterations, params.radius, deviceProp.numPIMCores, coreHeight, coreWidth);
+  stencil(x, y, params.gridWidth, params.iterations, params.radius, deviceProp.numPIMCores, coreHeight, coreWidth, params.allocStrategy);
 
   if (params.shouldVerify)
   {

@@ -349,7 +349,7 @@ enum PimAllocationStrategy {
   PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT = 0,
   PIM_ALLOCATION_STRATEGY_GAME_OF_LIFE,
   PIM_ALLOCATION_STRATEGY_RANDOM, // for testing
-  // etc.
+  PIM_ALLOCATION_STRATEGY_LEAST_USED_CORES,
 };
 
 //! @brief Allocate grid of cores, with specified sizes of data per core

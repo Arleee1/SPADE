@@ -7,6 +7,7 @@
 #include "pimResMgr.h"            // for pimResMgr
 #include "pimDevice.h"            // for pimDevice
 #include "gridLayoutOptimizer.h"  // for optimizeGridLayout
+#include "gridLogger.h"           // for logGridCoreLocations2D
 #include <cstdio>                 // for printf
 #include <algorithm>              // for sort, prev
 #include <stdexcept>              // for throw, invalid_argument
@@ -706,7 +707,8 @@ pimResMgr::getCoresForGrid(
     TotalMoveCostParams params;
     params.subarrayBlockWidth = numElementsPerCoreHorizontal;
     params.subarrayBlockHeight = numElementsPerCoreVertical;
-    params.subarraysPerBank = m_device->isBankCoreDevice() ? subarraysPerBank : 1;
+    // The naming here conflates subarrays and cores, so for bank core devices the number of subarrays (read: cores) per bank is 1
+    params.subarraysPerBank = m_device->isBankCoreDevice() ? 1 : subarraysPerBank;
     params.banksPerRank = banksPerRank;
     params.ranks = ranks;
     params.totalGridWidth = numCoresHorizontal;
@@ -714,7 +716,7 @@ pimResMgr::getCoresForGrid(
     //! @todo grid: fix
     params.radius = 1;
     params.transferCostSubarrayToSubarray = 1;
-    params.transferCostRankToRank = 10;
+    params.transferCostBankToBank = 10;
     params.transferCostRankToRank = 100;
     const GridLayoutConfig layout = optimizeGridLayout(params);
 
@@ -746,9 +748,11 @@ pimResMgr::getCoresForGrid(
           SubarrayCoreLocation subarrayLoc{bankId, subarrayId};
           loc = {rankId, 0, subarrayLoc};
         }
-
-        // coreLocations[coreIdx] = PimCoreLocation{rankId, bankId, coreRow, coreCol};
-        cores[coreIdx] = m_device->getCoreId(loc);
+        if(loc.chip != 0) {
+          printf("PIM-Error: getCoresForGrid: Unsupported multi-chip configuration for stencil-based allocation strategy\n");
+          return {};
+        }
+        cores[coreIdx] = m_device->getCoreIdIgnoreChip(loc);
       }
     }
     return cores;
@@ -838,6 +842,33 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                                             numElementsPerCoreVertical,
                                             numElementsPerCoreHorizontal,
                                             allocationStrategy);
+
+  std::vector<GridCoreLocationTuple> coreLocationTuples;
+  coreLocationTuples.reserve(coreIds.size());
+  for (const PimCoreId coreId : coreIds) {
+    const PimCoreLocation coreLoc = m_device->getCoreLocationIgnoreChip(coreId);
+    if(coreLoc.chip != 0) {
+      printf("PIM-Error: pimAllocGrid: Unsupported multi-chip configuration for logging core locations\n");
+      return {};
+    }
+    unsigned bank = 0;
+    std::optional<unsigned> subarray;
+    if (std::holds_alternative<BankCoreLocation>(coreLoc.loc)) {
+      bank = std::get<BankCoreLocation>(coreLoc.loc).bankCoreIdx;
+    } else {
+      const SubarrayCoreLocation& subarrayLoc = std::get<SubarrayCoreLocation>(coreLoc.loc);
+      bank = subarrayLoc.bank;
+      subarray = subarrayLoc.subarrayCoreIdx;
+    }
+    coreLocationTuples.emplace_back(coreLoc.rank, coreLoc.chip, bank, subarray);
+  }
+
+  const std::string gridLogFileName = allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_LEAST_USED_CORES ?
+                                    "pim_alloc_grid_least_used_cores.csv" :
+                                    "pim_alloc_grid_stencil_9_point.csv";
+  if (!logGridCoreLocations2D(coreLocationTuples, numCoresVertical, numCoresHorizontal, gridLogFileName)) {
+    std::printf("PIM-Error: pimAllocGrid: Failed to log core locations to %s\n", gridLogFileName.c_str());
+  }
 
   // create new regions
   bool success = true;

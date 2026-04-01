@@ -221,6 +221,57 @@ pimDevice::getCoreId(PimCoreLocation coreLoc) const
   }
 }
 
+//! @brief Uses a flat address space for all banks in a rank, ignores chip
+PimCoreLocation
+pimDevice::getCoreLocationIgnoreChip(PimCoreId coreId) const
+{
+  assert(coreId < m_numCores);
+
+  unsigned numBankPerRank = getNumBankPerRank();
+  unsigned numChipPerRank = getNumChipPerRank();
+  if (m_bankCoreDevice) {
+    unsigned coresPerChip = m_numCoreInNextLevel;
+    unsigned coresPerRank = coresPerChip * numChipPerRank;
+    unsigned rank = coreId / coresPerRank;
+    unsigned rem = coreId % coresPerRank;
+    unsigned chip = rem / coresPerChip;
+    rem = rem % coresPerChip;
+    unsigned bankCoreIdx = rem;
+    bankCoreIdx += (chip * coresPerChip); // Shift bankCoreIdx by number of cores per chip to ignore chip dimension
+    return PimCoreLocation{rank, 0, BankCoreLocation{bankCoreIdx}};
+  } else {
+    unsigned coresPerBank = m_numCoreInNextLevel;
+    unsigned coresPerChip = coresPerBank * (numBankPerRank/numChipPerRank);
+    unsigned coresPerRank = coresPerChip * numChipPerRank;
+    unsigned rank = coreId / coresPerRank;
+    unsigned rem = coreId % coresPerRank;
+    unsigned chip = rem / coresPerChip;
+    rem = rem % coresPerChip;
+    unsigned bankCoreIdx = rem / coresPerBank;
+    bankCoreIdx += (chip * (numBankPerRank/numChipPerRank)); // Shift bankCoreIdx by number of cores per chip to ignore chip dimension
+    rem = rem % coresPerBank;
+    unsigned subarrayCoreIdx = rem;
+    return PimCoreLocation{rank, 0, SubarrayCoreLocation{bankCoreIdx, subarrayCoreIdx}};
+  }
+}
+
+PimCoreId
+pimDevice::getCoreIdIgnoreChip(PimCoreLocation coreLoc) const
+{
+  // Implementation for getting core ID from location
+  unsigned rank = coreLoc.rank;
+  if (m_bankCoreDevice) {
+    unsigned bankCoreIdx = std::get<BankCoreLocation>(coreLoc.loc).bankCoreIdx;
+    return rank * (getNumChipPerRank() * m_numCoreInNextLevel) + bankCoreIdx;
+  } else {
+    unsigned bank = std::get<SubarrayCoreLocation>(coreLoc.loc).bank;
+    unsigned subarrayCoreIdx = std::get<SubarrayCoreLocation>(coreLoc.loc).subarrayCoreIdx;
+    unsigned numCorePerRank = getNumBankPerRank() * m_numCoreInNextLevel;
+    unsigned numCorePerBank = m_numCoreInNextLevel;
+    return rank * numCorePerRank + bank * numCorePerBank + subarrayCoreIdx;
+  }
+}
+
 //! @brief  Alloc a PIM object
 PimObjId
 pimDevice::pimAlloc(PimAllocEnum allocType, uint64_t numElements, PimDataType dataType)

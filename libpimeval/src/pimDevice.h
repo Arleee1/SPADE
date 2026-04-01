@@ -63,6 +63,8 @@ public:
 
   PimCoreLocation getCoreLocation(PimCoreId coreId) const;
   PimCoreId getCoreId(PimCoreLocation coreLoc) const;
+  PimCoreLocation getCoreLocationIgnoreChip(PimCoreId coreId) const;
+  PimCoreId getCoreIdIgnoreChip(PimCoreLocation coreLoc) const;
   unsigned getNumCoresInNextLevel() const { return m_numCoreInNextLevel; }
   bool isBankCoreDevice() const { return m_bankCoreDevice; }
 

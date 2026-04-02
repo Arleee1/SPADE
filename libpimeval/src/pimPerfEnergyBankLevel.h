@@ -38,6 +38,9 @@ public:
                                                         uint64_t numHalo) const override;
 
 protected:
+  pimeval::perfEnergy getPerfEnergyForHaloCopyHost(const HaloCopyParams& params) const;
+  pimeval::perfEnergy getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const;
+
   double m_blimpLatency = m_tCCD_L * m_tCK;
   unsigned m_blimpCoreBitWidth = m_GDLWidth;
   unsigned m_simdUnitCount = m_blimpCoreBitWidth / 32; // 32-bit SIMD unit

@@ -116,6 +116,16 @@ protected:
   unsigned m_tRCD; // RCD in cycles
   unsigned m_tRP; // RP in cycles
   unsigned m_tRAS; // RAS in cycles
+
+  struct HaloCopyParams {
+    PimCmdEnum cmdType;
+    const std::vector<PimCoreLocation>& coreLocations;
+    uint64_t numCoresVertical;
+    uint64_t numCoresHorizontal;
+    uint64_t numElementsPerCoreVertical;
+    uint64_t numElementsPerCoreHorizontal;
+    uint64_t numHalo;
+  };
 };
 
 #endif

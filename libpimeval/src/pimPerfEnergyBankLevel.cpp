@@ -467,6 +467,103 @@ pimPerfEnergyBankLevel::getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimO
 }
 
 pimeval::perfEnergy
+pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyHost(const HaloCopyParams& params) const {
+  double msRuntime = 0.0;
+  double mjEnergy = 0.0;
+  double msRead = 0.0;
+  double msWrite = 0.0;
+  double msCompute = 0.0;
+  uint64_t totalOp = 0;
+
+  const uint64_t numBytesHorizontal = 2 * params.numCoresVertical * (params.numCoresHorizontal - 1) * params.numHalo * ((params.numElementsPerCoreVertical - 2 * params.numHalo));
+  const uint64_t numBytesVertical = 2 * params.numCoresHorizontal * (params.numCoresVertical - 1) * params.numHalo * ((params.numElementsPerCoreHorizontal - 2 * params.numHalo));
+  const uint64_t numBytesDiagonal = 4 * (params.numCoresHorizontal - 1) * (params.numCoresVertical - 1) * params.numHalo * params.numHalo;
+  const uint64_t numBytes = numBytesHorizontal + numBytesVertical + numBytesDiagonal;
+
+  pimeval::perfEnergy perfEnergyBT = getPerfEnergyForBytesTransfer(PimCmdEnum::COPY_D2H, numBytes);
+  msRuntime += 2 * perfEnergyBT.m_msRuntime;
+  mjEnergy += 2 * perfEnergyBT.m_mjEnergy;
+  totalOp += numBytes;
+
+  return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
+}
+
+pimeval::perfEnergy
+pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const {
+    double msRuntime = 0.0;
+    double mjEnergy = 0.0;
+    double msRead = 0.0;
+    double msWrite = 0.0;
+    double msCompute = 0.0;
+    uint64_t totalOp = 0;
+
+    // Modeled as: all transfers within a rank in parallel, then all transfers accross ranks
+
+    // Number of bytes transferred within each rank
+    std::vector<uint64_t> numBytesPerRank(m_numRanks, 0);
+
+    auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numBytes) {
+      //! @todo grid: replace with real values
+      constexpr double msChipCopy = 0.1; // Placeholder value for chip-level copy latency per byte
+      constexpr double mjChipCopy = 0.01; // Placeholder value for chip-level copy energy per byte
+      constexpr double msRankCopy = 10 * msChipCopy; // Placeholder value for rank-level copy latency per byte
+      constexpr double mjRankCopy = 10 * mjChipCopy; // Placeholder value for rank-level copy energy per byte
+
+      if (coreOne.chip == coreTwo.chip) {
+        msRuntime += numBytes * msChipCopy;
+        mjEnergy += numBytes * mjChipCopy;
+        totalOp += numBytes;
+      }
+      else if (coreOne.rank == coreTwo.rank) {
+        msRuntime += numBytes * msRankCopy;
+        mjEnergy += numBytes * mjRankCopy;
+        totalOp += numBytes;
+      }
+      else {
+        //! @todo grid: update based on Farzana's comments
+        // For cores in different ranks, we assume the data needs to be copied to host and then to the other rank
+        pimeval::perfEnergy perfEnergyBT = getPerfEnergyForBytesTransfer(PimCmdEnum::COPY_D2H, numBytes);
+        msRuntime += 2 * perfEnergyBT.m_msRuntime;
+        mjEnergy += 2 * perfEnergyBT.m_mjEnergy;
+        totalOp += numBytes;
+      }
+
+    };
+
+    for(uint64_t coreY = 0; coreY < params.numCoresVertical; ++coreY) {
+      for(uint64_t coreX = 0; coreX < params.numCoresHorizontal; ++coreX) {
+        const uint64_t coreIndex = coreY * params.numCoresHorizontal + coreX;
+        const PimCoreLocation& coreLoc = params.coreLocations[coreIndex];
+        if (coreX > 0) {
+          const uint64_t leftCoreIndex = coreIndex - 1;
+          const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
+          const uint64_t numBytes = 2 * params.numHalo * (params.numElementsPerCoreVertical - 2 * params.numHalo);
+          updatePerfEnergyForHaloCopy(coreLoc, leftCoreLoc, numBytes);
+        }
+        if (coreY > 0) {
+          const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
+          const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
+          const uint64_t numBytes = 2 * (params.numElementsPerCoreHorizontal - 2 * params.numHalo) * params.numHalo;
+          updatePerfEnergyForHaloCopy(coreLoc, aboveCoreLoc, numBytes);
+        }
+        if (coreX > 0 && coreY > 0) {
+          const uint64_t leftCoreIndex = coreIndex - 1;
+          const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
+          const uint64_t aboveLeftCoreIndex = coreIndex - params.numCoresHorizontal - 1;
+          const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
+          const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
+          const PimCoreLocation& aboveLeftCoreLoc = params.coreLocations[aboveLeftCoreIndex];
+          const uint64_t numBytes = 2 * params.numHalo * params.numHalo; // Both current <=> aboveLeft and left <=> above
+          updatePerfEnergyForHaloCopy(coreLoc, aboveLeftCoreLoc, numBytes);
+          updatePerfEnergyForHaloCopy(leftCoreLoc, aboveCoreLoc, numBytes);
+        }
+      }
+    }
+
+    return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
+  }
+
+pimeval::perfEnergy
 pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
                                                  const std::vector<PimCoreLocation>& coreLocations,
                                                  uint64_t numCoresVertical,
@@ -477,6 +574,18 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
 {
   assert(numCoresVertical * numCoresHorizontal == coreLocations.size());
 
+  HaloCopyParams haloParams = {
+    .cmdType = cmdType,
+    .coreLocations = coreLocations,
+    .numCoresVertical = numCoresVertical,
+    .numCoresHorizontal = numCoresHorizontal,
+    .numElementsPerCoreVertical = numElementsPerCoreVertical,
+    .numElementsPerCoreHorizontal = numElementsPerCoreHorizontal,
+    .numHalo = numHalo
+  };
+
+  const bool usePimCopy = true;
+
   double msRuntime = 0.0;
   double mjEnergy = 0.0;
   double msRead = 0.0;
@@ -484,81 +593,14 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
   double msCompute = 0.0;
   uint64_t totalOp = 0;
 
-  auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numBytes) {
-    constexpr bool isCopyToHost = false; // Assume the worst case where data needs to be copied to host for halo exchange
-
-    //! @todo grid: replace with real values
-    constexpr double msChipCopy = 0.1; // Placeholder value for chip-level copy latency per byte
-    constexpr double mjChipCopy = 0.01; // Placeholder value for chip-level copy energy per byte
-    constexpr double msRankCopy = 10*msChipCopy; // Placeholder value for rank-level copy latency per byte
-    constexpr double mjRankCopy = 10*mjChipCopy; // Placeholder value for rank-level copy energy per byte
-
-    if constexpr (isCopyToHost) {
-      //! @todo grid: update based on Farzana's comments
-      pimeval::perfEnergy perfEnergyBT = getPerfEnergyForBytesTransfer(PimCmdEnum::COPY_D2H, numBytes);
-      msRuntime += 2 * perfEnergyBT.m_msRuntime;
-      mjEnergy += 2 * perfEnergyBT.m_mjEnergy;
-      totalOp += numBytes;
-      return;
-    }
-
-    if (coreOne.chip == coreTwo.chip) {
-      msRuntime += numBytes * msChipCopy;
-      mjEnergy += numBytes * mjChipCopy;
-      totalOp += numBytes;
-    } else if (coreOne.rank == coreTwo.rank) {
-      msRuntime += numBytes * msRankCopy;
-      mjEnergy += numBytes * mjRankCopy;
-      totalOp += numBytes;
-    } else {
-      //! @todo grid: update based on Farzana's comments
-      // For cores in different ranks, we assume the data needs to be copied to host and then to the other rank
-      pimeval::perfEnergy perfEnergyBT = getPerfEnergyForBytesTransfer(PimCmdEnum::COPY_D2H, numBytes);
-      msRuntime += 2 * perfEnergyBT.m_msRuntime;
-      mjEnergy += 2 * perfEnergyBT.m_mjEnergy;
-      totalOp += numBytes;
-    }
-
-  };
-
   switch (cmdType) {
-    case PimCmdEnum::COPY_GRID_HALO:
-    {
-
-      if (numCoresVertical < 2 || numCoresHorizontal < 2) {
-        break;
+    case PimCmdEnum::COPY_GRID_HALO: {
+      if(usePimCopy) {
+        return getPerfEnergyForHaloCopyPim(haloParams);
       }
-
-      for(uint64_t coreY = 0; coreY < numCoresVertical; ++coreY) {
-        for(uint64_t coreX = 0; coreX < numCoresHorizontal; ++coreX) {
-          const uint64_t coreIndex = coreY * numCoresHorizontal + coreX;
-          const PimCoreLocation& coreLoc = coreLocations[coreIndex];
-          if (coreX > 0) {
-            const uint64_t leftCoreIndex = coreIndex - 1;
-            const PimCoreLocation& leftCoreLoc = coreLocations[leftCoreIndex];
-            const uint64_t numBytes = 2 * numHalo * (numElementsPerCoreVertical - 2 * numHalo);
-            updatePerfEnergyForHaloCopy(coreLoc, leftCoreLoc, numBytes);
-          }
-          if (coreY > 0) {
-            const uint64_t aboveCoreIndex = coreIndex - numCoresHorizontal;
-            const PimCoreLocation& aboveCoreLoc = coreLocations[aboveCoreIndex];
-            const uint64_t numBytes = 2 * (numElementsPerCoreHorizontal - 2 * numHalo) * numHalo;
-            updatePerfEnergyForHaloCopy(coreLoc, aboveCoreLoc, numBytes);
-          }
-          if (coreX > 0 && coreY > 0) {
-            const uint64_t leftCoreIndex = coreIndex - 1;
-            const uint64_t aboveCoreIndex = coreIndex - numCoresHorizontal;
-            const uint64_t aboveLeftCoreIndex = coreIndex - numCoresHorizontal - 1;
-            const PimCoreLocation& leftCoreLoc = coreLocations[leftCoreIndex];
-            const PimCoreLocation& aboveCoreLoc = coreLocations[aboveCoreIndex];
-            const PimCoreLocation& aboveLeftCoreLoc = coreLocations[aboveLeftCoreIndex];
-            const uint64_t numBytes = 2 * numHalo * numHalo; // Both current <=> aboveLeft and left <=> above
-            updatePerfEnergyForHaloCopy(coreLoc, aboveLeftCoreLoc, numBytes);
-            updatePerfEnergyForHaloCopy(leftCoreLoc, aboveCoreLoc, numBytes);
-          }
-        }
+      else {
+        return getPerfEnergyForHaloCopyHost(haloParams);
       }
-
       break;
     }
     default:

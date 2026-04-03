@@ -39,7 +39,6 @@ public:
                                                         const pimObjInfo& firstObj) const override;
 
 protected:
-  pimeval::perfEnergy getPerfEnergyForHaloCopyHost(const HaloCopyParams& params) const;
   pimeval::perfEnergy getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const;
 
   double m_blimpLatency = m_tCCD_L * m_tCK;

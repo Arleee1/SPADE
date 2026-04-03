@@ -467,30 +467,6 @@ pimPerfEnergyBankLevel::getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimO
 }
 
 pimeval::perfEnergy
-pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyHost(const HaloCopyParams& params) const {
-  double msRuntime = 0.0;
-  double mjEnergy = 0.0;
-  double msRead = 0.0;
-  double msWrite = 0.0;
-  double msCompute = 0.0;
-  uint64_t totalOp = 0;
-
-  const uint64_t numBytesHorizontal = 2 * params.numCoresVertical * (params.numCoresHorizontal - 1) * params.numHalo * ((params.numElementsPerCoreVertical - 2 * params.numHalo));
-  const uint64_t numBytesVertical = 2 * params.numCoresHorizontal * (params.numCoresVertical - 1) * params.numHalo * ((params.numElementsPerCoreHorizontal - 2 * params.numHalo));
-  const uint64_t numBytesDiagonal = 4 * (params.numCoresHorizontal - 1) * (params.numCoresVertical - 1) * params.numHalo * params.numHalo;
-  const uint64_t numElems = numBytesHorizontal + numBytesVertical + numBytesDiagonal;
-
-  const uint64_t numBytes = numElems * params.bytesPerElement;
-
-  pimeval::perfEnergy perfEnergyBT = getPerfEnergyForBytesTransfer(PimCmdEnum::COPY_D2H, numBytes);
-  msRuntime += 2 * perfEnergyBT.m_msRuntime;
-  mjEnergy += 2 * perfEnergyBT.m_mjEnergy;
-  totalOp += numBytes;
-
-  return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
-}
-
-pimeval::perfEnergy
 pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const {
     double msRuntime = 0.0;
     double mjEnergy = 0.0;
@@ -590,7 +566,7 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
     .bytesPerElement = bytesPerElement
   };
 
-  const bool usePimCopy = true;
+  const bool usePimCopy = false;
 
   double msRuntime = 0.0;
   double mjEnergy = 0.0;

@@ -211,13 +211,14 @@ pimPerfEnergyBase::getPerfEnergyForMac(PimCmdEnum cmdType, const pimObjInfo& obj
 
 //! @brief  Perf energy model of base class for halo copy
 pimeval::perfEnergy
-pimPerfEnergyBase::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
-                                            const std::vector<PimCoreLocation>& coreLocations,
-                                            uint64_t numCoresVertical,
-                                            uint64_t numCoresHorizontal,
-                                            uint64_t numElementsPerCoreVertical,
-                                            uint64_t numElementsPerCoreHorizontal,
-                                            uint64_t numHalo) const
+pimPerfEnergyBase::getPerfEnergyForHaloCopy([[maybe_unused]] PimCmdEnum cmdType,
+                                            [[maybe_unused]] const std::vector<PimCoreLocation>& coreLocations,
+                                            [[maybe_unused]] uint64_t numCoresVertical,
+                                            [[maybe_unused]] uint64_t numCoresHorizontal,
+                                            [[maybe_unused]] uint64_t numElementsPerCoreVertical,
+                                            [[maybe_unused]] uint64_t numElementsPerCoreHorizontal,
+                                            [[maybe_unused]] uint64_t numHalo,
+                                            [[maybe_unused]] const pimObjInfo& firstObj) const
 {
   double msRuntime = 1e10;
   double mjEnergy = 999999999.9;

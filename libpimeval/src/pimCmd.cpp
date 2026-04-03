@@ -730,7 +730,9 @@ pimCmdCopyHalo::updateStats() const
       numCoresHorizontal,
       numElementsPerCoreVertical,
       numElementsPerCoreHorizontal,
-      m_numHalo);
+      m_numHalo,
+      firstObj
+    );
   pimSim::get()->getStatsMgr()->recordCmd(getName(dataType, isVLayout), mPerfEnergy);
   return true;
 }

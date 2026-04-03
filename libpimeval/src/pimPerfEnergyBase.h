@@ -82,7 +82,8 @@ public:
                                                         uint64_t numCoresHorizontal,
                                                         uint64_t numElementsPerCoreVertical,
                                                         uint64_t numElementsPerCoreHorizontal,
-                                                        uint64_t numHalo) const;
+                                                        uint64_t numHalo,
+                                                        const pimObjInfo& firstObj) const;
 
 protected:
   PimDeviceEnum m_simTarget;
@@ -125,6 +126,8 @@ protected:
     uint64_t numElementsPerCoreVertical;
     uint64_t numElementsPerCoreHorizontal;
     uint64_t numHalo;
+    const pimObjInfo& firstObj;
+    unsigned bytesPerElement;
   };
 };
 

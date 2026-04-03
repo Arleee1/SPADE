@@ -35,7 +35,8 @@ public:
                                                         uint64_t numCoresHorizontal,
                                                         uint64_t numElementsPerCoreVertical,
                                                         uint64_t numElementsPerCoreHorizontal,
-                                                        uint64_t numHalo) const override;
+                                                        uint64_t numHalo,
+                                                        const pimObjInfo& firstObj) const override;
 
 protected:
   pimeval::perfEnergy getPerfEnergyForHaloCopyHost(const HaloCopyParams& params) const;

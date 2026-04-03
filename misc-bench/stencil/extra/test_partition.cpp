@@ -20,7 +20,9 @@ bool runPartitionCase(const PartitionCase& partitionCase) {
 			partitionCase.gridHeight,
 			partitionCase.maxAvailableCores,
 			partitionCase.maxTileWidth,
-			partitionCase.maxTileHeight);
+			partitionCase.maxTileHeight,
+      1
+    );
 
 	const uint64_t coveredWidth =
 			(partitioning.numCoresHorizontal - 1) * partitioning.tileWidth +

@@ -163,7 +163,7 @@ void game_of_life(const std::span<uint8_t> &src_host, std::span<uint8_t> &dst_ho
   }
 
   const GridPartitioning partitioning = calculateGridPartitioning(width, height, maxAvailableCores,
-                                                                  maxTileWidth, maxTileHeight);
+                                                                  maxTileWidth, maxTileHeight, 1);
 
   assert(partitioning.totalCores > 0);
   const uint64_t rowsToAllocateBool = partitioning.tileHeight + extraRowsBool;

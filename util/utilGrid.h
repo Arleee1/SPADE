@@ -24,7 +24,7 @@ struct GridPartitioning {
 };
 
 GridPartitioning calculateGridPartitioning(const uint64_t gridWidth, const uint64_t gridHeight, const uint64_t maxAvailableCores,
-                                           const uint64_t maxTileWidth, const uint64_t maxTileHeight) {
+                                           const uint64_t maxTileWidth, const uint64_t maxTileHeight, const uint64_t numHalo) {
 
   //! @todo grid: currently seeks to mimize the tile height, then to maximize the number of cores, then to prefer wider core layouts.
   //!               This is a heuristic that this model of PIM should be more efficient horizontally as it has horizontal parallelism.
@@ -75,6 +75,10 @@ GridPartitioning calculateGridPartitioning(const uint64_t gridWidth, const uint6
 
       if (candidateTileWidth > maxTileWidth || candidateTileHeight > maxTileHeight ||
           candidateTileWidthLast > maxTileWidth || candidateTileHeightLast > maxTileHeight) {
+        continue;
+      }
+
+      if (candidateTileHeight < 3*numHalo || candidateTileWidth < 3*numHalo) {
         continue;
       }
 

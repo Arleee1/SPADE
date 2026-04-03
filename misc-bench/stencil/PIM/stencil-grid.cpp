@@ -205,7 +205,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   const uint64_t maxTileWidth = coreWidth - extraCols;
 
   const GridPartitioning partitioning = calculateGridPartitioning(gridWidth, gridHeight, maxAvailableCores,
-                                                                  maxTileWidth, maxTileHeight);
+                                                                  maxTileWidth, maxTileHeight, radius);
 
   assert(partitioning.totalCores > 0);
   const uint64_t colsToAllocate = partitioning.tileWidth + extraCols;

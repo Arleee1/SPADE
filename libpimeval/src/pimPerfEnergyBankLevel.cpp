@@ -480,7 +480,7 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params
 
     // Modeled as: all transfers within a rank in parallel, then all transfers accross ranks
 
-    // Number of bytes transferred banktobank within each rank
+    // Number of elements transferred banktobank within each rank
     std::vector<uint64_t> numElemPerRank(m_numRanks, 0);
     uint64_t maxElemPerRank = 0;
     uint64_t totalElemsAcrossRanks = 0;
@@ -552,7 +552,6 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
   unsigned bitsPerElement = firstObj.getBitsPerElement(PimBitWidth::ACTUAL);
   unsigned bytesPerElement = (bitsPerElement + 7) / 8;
 
-  //! @todo grid: account for bytesPerElement
   //! @todo grid: halo takes longer?
   HaloCopyParams haloParams = {
     .cmdType = cmdType,

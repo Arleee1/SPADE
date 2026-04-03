@@ -6,6 +6,7 @@
 
 #include "pimPerfEnergyFulcrum.h"
 #include "pimCmd.h"
+#include "pimDevice.h"
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -122,7 +123,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForFunc1(PimCmdEnum cmdType, const pimObjInfo
       msRuntime = msRead + msWrite + msALU;
       mjEnergy = (numPass - 1) * numCores * ((m_eAP * 2) + ((maxElementsPerRegion - 1) * 2 *  m_fulcrumShiftEnergy) + (maxElementsPerRegion * m_fulcrumAddEnergy * numberOfALUOperationPerElement));
       mjEnergy = numCores * ((m_eAP * 2) + ((minElementPerRegion - 1) * 2 *  m_fulcrumShiftEnergy) + (minElementPerRegion * m_fulcrumAddEnergy * numberOfALUOperationPerElement));
-      mjEnergy += m_pBChip * m_numChipsPerRank * m_numRanks * msRuntime; 
+      mjEnergy += m_pBChip * m_numChipsPerRank * m_numRanks * msRuntime;
       totalOp = obj.getNumElements();
       break;
     }
@@ -225,7 +226,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForFunc2(PimCmdEnum cmdType, const pimObjInfo
     default:
       printf("PIM-Warning: Perf energy model not available for PIM command %s\n", pimCmd::getName(cmdType, "").c_str());
       break;
-  } 
+  }
   return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msALU, totalOp);
 }
 
@@ -258,7 +259,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForReduction(PimCmdEnum cmdType, const pimObj
     double numberOfOperationPerElement = ((double)bitsPerElement / m_fulcrumAluBitWidth);
     // TODO: This needs to be flexible
     double aggregateMs = static_cast<double>(obj.getNumCoresUsed()) / 2300000;
-    
+
     msRead = m_tR;
     msWrite = 0;
     msCompute = aggregateMs + (maxElementsPerRegion * m_fulcrumAddLatency * numberOfOperationPerElement * (numPass  - 1)) + (minElementPerRegion * m_fulcrumAddLatency * numberOfOperationPerElement);
@@ -385,7 +386,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimObj
 
     // read a row to walker, then add in serial
     double numberOfOperationPerElement = ((double)bitsPerElement / m_fulcrumAluBitWidth);
-    
+
     // TODO: This needs to be flexible
     double aggregateMs = static_cast<double>(obj.getNumCoresUsed()) / 2300000;
     double hostRW = (obj.getNumCoresUsed() * 1.0 / m_numChipsPerRank) * (m_tR + m_tW + (m_tGDL * 2));
@@ -406,4 +407,153 @@ pimPerfEnergyFulcrum::getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimObj
     break;
   }
   return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
+}
+
+
+pimeval::perfEnergy
+pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const {
+    double msRuntime = 0.0;
+    double mjEnergy = 0.0;
+    double msRead = 0.0;
+    double msWrite = 0.0;
+    double msCompute = 0.0;
+    uint64_t totalOp = 0;
+
+    double lisaCopyCoeff = params.firstObj.getDevice()->getConfig().getLisaCopyCoeff();
+    double interBankLatencyMs = params.firstObj.getDevice()->getConfig().getInterBankLatencyNs() / m_nano_to_milli;
+    double interRankLatencyMs = params.firstObj.getDevice()->getConfig().getInterRankLatencyNs() / m_nano_to_milli;
+    double lisaCopy = lisaCopyCoeff * m_tRAS * m_tCK; // in ms
+
+    unsigned bankPerRank = params.firstObj.getDevice()->getNumBankPerRank();
+    // Modeled as:
+    // All intra-bank transfers in parallel -> max time of intra-bank transfers
+    // All intra-rank transfers in parallel -> max time of intra-rank transfers
+    // All inter-rank transfers sequentially -> sum of inter-rank transfer time
+
+    uint64_t totalElemsAcrossRanks = 0;
+    // Number of elements transferred inter-bank within each rank
+    std::vector<uint64_t> numElemPerRank(m_numRanks, 0);
+    uint64_t maxElemPerRank = 0;
+    // Number of elements transfered inter-subarray within each bank
+    std::vector<std::vector<uint64_t>> numElemPerBank(m_numRanks, std::vector<uint64_t>(bankPerRank, 0));
+    uint64_t maxElemPerBank = 0;
+
+    auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numElem) {
+      unsigned bankIdxOne = std::get<SubarrayCoreLocation>(coreOne.loc).bank;
+      unsigned bankIdxTwo = std::get<SubarrayCoreLocation>(coreTwo.loc).bank;
+
+      totalOp += numElem;
+
+      if (coreOne.rank == coreTwo.rank && bankIdxOne == bankIdxTwo) {
+        uint64_t& currentNumElem = numElemPerBank[coreOne.rank][bankIdxOne];
+        currentNumElem += numElem;
+        maxElemPerBank = std::max(maxElemPerBank, currentNumElem);
+      }
+      else if (coreOne.rank == coreTwo.rank) {
+        uint64_t& currentNumElem = numElemPerRank[coreOne.rank];
+        currentNumElem += numElem;
+        maxElemPerRank = std::max(maxElemPerRank, currentNumElem);
+      } else {
+        totalElemsAcrossRanks += numElem;
+      }
+    };
+
+    for(uint64_t coreY = 0; coreY < params.numCoresVertical; ++coreY) {
+      for(uint64_t coreX = 0; coreX < params.numCoresHorizontal; ++coreX) {
+        const uint64_t coreIndex = coreY * params.numCoresHorizontal + coreX;
+        const PimCoreLocation& coreLoc = params.coreLocations[coreIndex];
+        if (coreX > 0) {
+          const uint64_t leftCoreIndex = coreIndex - 1;
+          const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
+          const uint64_t numElems = 2 * params.numHalo * (params.numElementsPerCoreVertical - 2 * params.numHalo);
+          updatePerfEnergyForHaloCopy(coreLoc, leftCoreLoc, numElems);
+        }
+        if (coreY > 0) {
+          const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
+          const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
+          const uint64_t numElems = 2 * (params.numElementsPerCoreHorizontal - 2 * params.numHalo) * params.numHalo;
+          updatePerfEnergyForHaloCopy(coreLoc, aboveCoreLoc, numElems);
+        }
+        if (coreX > 0 && coreY > 0) {
+          const uint64_t leftCoreIndex = coreIndex - 1;
+          const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
+          const uint64_t aboveLeftCoreIndex = coreIndex - params.numCoresHorizontal - 1;
+          const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
+          const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
+          const PimCoreLocation& aboveLeftCoreLoc = params.coreLocations[aboveLeftCoreIndex];
+          const uint64_t numElems = 2 * params.numHalo * params.numHalo; // Both current <=> aboveLeft and left <=> above
+          updatePerfEnergyForHaloCopy(coreLoc, aboveLeftCoreLoc, numElems);
+          updatePerfEnergyForHaloCopy(leftCoreLoc, aboveCoreLoc, numElems);
+        }
+      }
+    }
+
+    //! @todo grid: check with Farzana
+    constexpr uint64_t interBankGranularity = 64;
+    constexpr uint64_t interRankGranularity = 64;
+    constexpr uint64_t interSubarrayGranularity = 64;
+    const double msMaxInterBank = interBankLatencyMs * (params.bytesPerElement * maxElemPerRank + interBankGranularity - 1) / interBankGranularity;
+    const double msTotalInterRank = interRankLatencyMs * (params.bytesPerElement * totalElemsAcrossRanks + interRankGranularity - 1) / interRankGranularity;
+    const double msInterSubarray = lisaCopy * (params.bytesPerElement * maxElemPerBank + interSubarrayGranularity - 1) / interSubarrayGranularity;
+
+    msRuntime += msMaxInterBank + msTotalInterRank + msInterSubarray;
+
+    totalOp *= params.bytesPerElement;
+
+    return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
+  }
+
+pimeval::perfEnergy
+pimPerfEnergyFulcrum::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
+                                               const std::vector<PimCoreLocation>& coreLocations,
+                                               uint64_t numCoresVertical,
+                                               uint64_t numCoresHorizontal,
+                                               uint64_t numElementsPerCoreVertical,
+                                               uint64_t numElementsPerCoreHorizontal,
+                                               uint64_t numHalo,
+                                               const pimObjInfo& firstObj) const
+{
+  assert(numCoresVertical * numCoresHorizontal == coreLocations.size());
+
+  unsigned bitsPerElement = firstObj.getBitsPerElement(PimBitWidth::ACTUAL);
+  unsigned bytesPerElement = (bitsPerElement + 7) / 8;
+
+  //! @todo grid: halo takes longer?
+  HaloCopyParams haloParams = {
+    .cmdType = cmdType,
+    .coreLocations = coreLocations,
+    .numCoresVertical = numCoresVertical,
+    .numCoresHorizontal = numCoresHorizontal,
+    .numElementsPerCoreVertical = numElementsPerCoreVertical,
+    .numElementsPerCoreHorizontal = numElementsPerCoreHorizontal,
+    .numHalo = numHalo,
+    .firstObj = firstObj,
+    .bytesPerElement = bytesPerElement
+  };
+
+  const bool usePimCopy = true;
+
+  double msRuntime = 0.0;
+  double mjEnergy = 0.0;
+  double msRead = 0.0;
+  double msWrite = 0.0;
+  double msCompute = 0.0;
+  uint64_t totalOp = 0;
+
+  switch (cmdType) {
+    case PimCmdEnum::COPY_GRID_HALO: {
+      if(usePimCopy) {
+        return getPerfEnergyForHaloCopyPim(haloParams);
+      }
+      else {
+        return getPerfEnergyForHaloCopyHost(haloParams);
+      }
+      break;
+    }
+    default:
+      printf("PIM-Warning: Unsupported command for halo copy in bank-level PIM: %s\n", pimCmd::getName(cmdType, "").c_str());
+      break;
+    }
+
+   return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
 }

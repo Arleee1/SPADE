@@ -28,8 +28,18 @@ public:
   virtual pimeval::perfEnergy getPerfEnergyForBroadcast(PimCmdEnum cmdType, const pimObjInfo& obj) const override;
   virtual pimeval::perfEnergy getPerfEnergyForRotate(PimCmdEnum cmdType, const pimObjInfo& obj, bool useCrossRegionCommunication) const override;
   virtual pimeval::perfEnergy getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimObjInfo& obj) const override;
+  virtual pimeval::perfEnergy getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
+                                                        const std::vector<PimCoreLocation>& coreLocations,
+                                                        uint64_t numCoresVertical,
+                                                        uint64_t numCoresHorizontal,
+                                                        uint64_t numElementsPerCoreVertical,
+                                                        uint64_t numElementsPerCoreHorizontal,
+                                                        uint64_t numHalo,
+                                                        const pimObjInfo& firstObj) const override;
 
 protected:
+  pimeval::perfEnergy getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const;
+
   double m_fulcrumMulLatency = 0.00000609; // 6.09ns
   double m_fulcrumAddLatency = 0.00000120; // 1.20ns
   unsigned m_fulcrumAluBitWidth = 32;

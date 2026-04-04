@@ -528,8 +528,10 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params
     //! @todo grid: check with Farzana
     constexpr uint64_t interBankGranularity = 64;
     constexpr uint64_t interRankGranularity = 64;
-    const double msMaxInterBank = interBankLatencyMs * (params.bytesPerElement * maxElemPerRank + interBankGranularity - 1) / interBankGranularity;
-    const double msTotalInterRank = interRankLatencyMs * (params.bytesPerElement * totalElemsAcrossRanks + interRankGranularity - 1) / interRankGranularity;
+    const uint64_t interBankBytes = maxElemPerRank * params.bytesPerElement;
+    const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
+    const double msMaxInterBank = interBankLatencyMs * (interRankBytes + interBankGranularity - 1) / interBankGranularity;
+    const double msTotalInterRank = interRankLatencyMs * (interBankBytes + interRankGranularity - 1) / interRankGranularity;
     msRuntime += msMaxInterBank + msTotalInterRank;
 
     totalOp *= params.bytesPerElement;

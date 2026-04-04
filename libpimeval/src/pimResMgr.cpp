@@ -715,9 +715,9 @@ pimResMgr::getCoresForGrid(
     params.totalGridHeight = numCoresVertical;
     //! @todo grid: fix
     params.radius = 1;
-    params.transferCostSubarrayToSubarray = 1;
-    params.transferCostBankToBank = 10;
-    params.transferCostRankToRank = 100;
+    params.transferCostSubarrayToSubarray = 4.6846799999999997e-06;
+    params.transferCostBankToBank = 5.3299999999999995e-05;
+    params.transferCostRankToRank = 5.9969999999999997e-05;
     const GridLayoutConfig layout = optimizeGridLayout(params);
 
     const uint64_t numRankHorizontal = layout.rankGridWidth;

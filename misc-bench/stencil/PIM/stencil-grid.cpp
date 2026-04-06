@@ -165,7 +165,7 @@ void updateStencilTile(std::span<PimObjId> workingPimMemory, std::span<PimObjId>
   // rowsInSumCircularQueue[0...2*radius] are occupied with workingPimMemory[0...2*radius] horizontally summed
   // runningSum = sum of rows [0...2*radius] horizontally summed
 
-  uint64_t nextRowToAdd = 2*radius; // The index of the next row to add to the queue and to the running sum
+  // uint64_t nextRowToAdd = 2*radius; // The index of the next row to add to the queue and to the running sum
 
   // Loops over the rest of the rows in the current chunk, vertically
   // Each iteration, finds horizontal sum of the next row (nextRowToAdd)
@@ -175,13 +175,14 @@ void updateStencilTile(std::span<PimObjId> workingPimMemory, std::span<PimObjId>
   // If neccessary, subtracts the row from the back of the queue from the runningSum
 
   for(uint64_t row=radius; row<workingPimMemory.size()-radius; ++row) {
+    const uint64_t nextRowToAdd = row + radius;
     sumStencilRow(workingPimMemory[nextRowToAdd], rowsInSumCircularQueue[circularQueueTop], tmpPim, radius);
 
     status = pimAdd(runningSum, rowsInSumCircularQueue[circularQueueTop], runningSum);
     assert (status == PIM_OK);
 
     circularQueueTop = (1+circularQueueTop) % rowsInSumCircularQueue.size();
-    ++nextRowToAdd;
+    // ++nextRowToAdd;
 
     status = pimMulScalar(runningSum, workingPimMemory[row], stencilAreaToMultiplyPim);
     assert (status == PIM_OK);

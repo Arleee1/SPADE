@@ -419,10 +419,11 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
     double msCompute = 0.0;
     uint64_t totalOp = 0;
 
-    double lisaCopyCoeff = params.firstObj.getDevice()->getConfig().getLisaCopyCoeff();
-    double interBankLatencyMs = params.firstObj.getDevice()->getConfig().getInterBankLatencyNs() / m_nano_to_milli;
-    double interRankLatencyMs = params.firstObj.getDevice()->getConfig().getInterRankLatencyNs() / m_nano_to_milli;
-    double lisaCopy = lisaCopyCoeff * m_tRAS * m_tCK; // in ms
+    const double interRankLatencyMs = params.firstObj.getDevice()->getConfig().getInterRankLatencyNs() / m_nano_to_milli;
+    const double interBankLatencyMs = params.firstObj.getDevice()->getConfig().getInterBankLatencyNs() / m_nano_to_milli;
+    const double lisaCopyCoeff = params.firstObj.getDevice()->getConfig().getLisaCopyCoeff();
+    const double lisaCopy = lisaCopyCoeff * m_tRAS * m_tCK; // in ms
+    const double interSubarrayLatencyMs = lisaCopy; // assume same as lisa copy
 
     unsigned bankPerRank = params.firstObj.getDevice()->getNumBankPerRank();
     // Modeled as:
@@ -434,9 +435,11 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
     // Number of elements transferred inter-bank within each rank
     std::vector<uint64_t> numElemPerRank(m_numRanks, 0);
     uint64_t maxElemPerRank = 0;
+    uint64_t totalElemInterBank = 0;
     // Number of elements transfered inter-subarray within each bank
     std::vector<std::vector<uint64_t>> numElemPerBank(m_numRanks, std::vector<uint64_t>(bankPerRank, 0));
     uint64_t maxElemPerBank = 0;
+    uint64_t totalElemInterSubarray = 0;
 
     auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numElem) {
       unsigned bankIdxOne = std::get<SubarrayCoreLocation>(coreOne.loc).bank;
@@ -448,11 +451,13 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
         uint64_t& currentNumElem = numElemPerBank[coreOne.rank][bankIdxOne];
         currentNumElem += numElem;
         maxElemPerBank = std::max(maxElemPerBank, currentNumElem);
+        totalElemInterSubarray += numElem;
       }
       else if (coreOne.rank == coreTwo.rank) {
         uint64_t& currentNumElem = numElemPerRank[coreOne.rank];
         currentNumElem += numElem;
         maxElemPerRank = std::max(maxElemPerRank, currentNumElem);
+        totalElemInterBank += numElem;
       } else {
         totalElemsAcrossRanks += numElem;
       }
@@ -488,15 +493,35 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
       }
     }
 
-    //! @todo grid: check with Farzana
-    constexpr uint64_t interBankGranularity = 64;
-    constexpr uint64_t interRankGranularity = 64;
-    constexpr uint64_t interSubarrayGranularity = 64;
-    const double msMaxInterBank = interBankLatencyMs * (params.bytesPerElement * maxElemPerRank + interBankGranularity - 1) / interBankGranularity;
-    const double msTotalInterRank = interRankLatencyMs * (params.bytesPerElement * totalElemsAcrossRanks + interRankGranularity - 1) / interRankGranularity;
-    const double msInterSubarray = lisaCopy * (params.bytesPerElement * maxElemPerBank + interSubarrayGranularity - 1) / interSubarrayGranularity;
+    // if true, assumes that all inter-bank transfers within a rank can be parallelized
+    //              in this case, the latency is determined by the rank with the maximum number of inter-bank transfers
+    // if false, assumes sequential inter-bank transfers, and the latency is determined by the total number of inter-bank transfers across all ranks
+    // const bool modelIntraPimParallel = params.firstObj.getDevice()->getConfig().isIntraPimParallelModeled();
 
-    msRuntime += msMaxInterBank + msTotalInterRank + msInterSubarray;
+    // if true, assumes that all inter-bank transfers within a rank can be parallelized
+    //              in this case, the latency is determined by the rank with the maximum number of inter-bank transfers
+    // if false, assumes sequential inter-bank transfers, and the latency is determined by the total number of inter-bank transfers across all ranks
+    const bool modelIntraPimParallel = params.firstObj.getDevice()->getConfig().isIntraPimParallelModeled();
+
+    //! @attention This is a simplification
+    constexpr uint64_t interRankGranularity = 64;
+    constexpr uint64_t interBankGranularity = 64;
+    constexpr uint64_t interSubarrayGranularity = 1024;
+
+    const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
+    const uint64_t interBankBytes = (modelIntraPimParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
+    const uint64_t interSubarrayBytes = (modelIntraPimParallel ? maxElemPerBank : totalElemInterSubarray) * params.bytesPerElement;
+
+    const double interRankMsPerByte = interRankLatencyMs / static_cast<double>(interRankGranularity);
+    const double interBankMsPerByte = interBankLatencyMs / static_cast<double>(interBankGranularity);
+    const double interSubarrayMsPerByte = interSubarrayLatencyMs / static_cast<double>(interSubarrayGranularity);
+
+    const double msInterRank = interRankMsPerByte * interRankBytes;
+    const double msInterBank = interBankMsPerByte * interBankBytes;
+    const double msInterSubarray = interSubarrayMsPerByte * interSubarrayBytes;
+
+
+    msRuntime += msInterRank + msInterBank + msInterSubarray;
 
     totalOp *= params.bytesPerElement;
 

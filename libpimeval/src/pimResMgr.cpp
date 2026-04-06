@@ -688,7 +688,8 @@ pimResMgr::getCoresForGrid(
                             size_t numCoresHorizontal,
                             size_t numElementsPerCoreVertical,
                             size_t numElementsPerCoreHorizontal,
-                            PimAllocationStrategy allocationStrategy) const
+                            PimAllocationStrategy allocationStrategy,
+                            size_t stencilRadius) const
 {
   const uint64_t numCores = numCoresVertical * numCoresHorizontal;
   if (allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_LEAST_USED_CORES) {
@@ -713,11 +714,10 @@ pimResMgr::getCoresForGrid(
     params.ranks = ranks;
     params.totalGridWidth = numCoresHorizontal;
     params.totalGridHeight = numCoresVertical;
-    //! @todo grid: fix
-    params.radius = 1;
+    params.radius = static_cast<uint64_t>(stencilRadius);
     params.transferCostSubarrayToSubarray = 4.6846799999999997e-06;
     params.transferCostBankToBank = 5.3299999999999995e-05;
-    params.transferCostRankToRank = 5.9969999999999997e-05;
+    params.transferCostRankToRank = 5.9969999999999997e-05 + params.transferCostBankToBank;
     const GridLayoutConfig layout = optimizeGridLayout(params);
 
     const uint64_t numRankHorizontal = layout.rankGridWidth;
@@ -767,7 +767,8 @@ PimObjGrid
 pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numCoresVertical, size_t numCoresHorizontal,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
-                          PimAllocationStrategy allocationStrategy)
+                          PimAllocationStrategy allocationStrategy,
+                          size_t stencilRadius)
 {
   if (m_debugAlloc) {
     printf("PIM-Debug: pimAllocGrid: Request: %s (%lu x %lu) cores of (%lu x %lu) elements of type %s\n",
@@ -841,7 +842,8 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                                             numCoresHorizontal,
                                             numElementsPerCoreVertical,
                                             numElementsPerCoreHorizontal,
-                                            allocationStrategy);
+                                            allocationStrategy,
+                                            stencilRadius);
 
   std::vector<GridCoreLocationTuple> coreLocationTuples;
   coreLocationTuples.reserve(coreIds.size());

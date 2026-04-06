@@ -108,12 +108,13 @@ PimObjGrid
 pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numCoresVertical, size_t numCoresHorizontal,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
-                          PimAllocationStrategy allocationStrategy)
+                          PimAllocationStrategy allocationStrategy,
+                          size_t stencilRadius)
 {
   PimObjGrid grid = pimSim::get()->pimAllocGrid(allocType, dataType,
                                       numCoresVertical, numCoresHorizontal,
                                       numElementsPerCoreVertical, numElementsPerCoreHorizontal,
-                                      allocationStrategy);
+                                      allocationStrategy, stencilRadius);
   std::fflush(stdout); // flush errors
   return grid;
 }

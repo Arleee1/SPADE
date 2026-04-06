@@ -228,7 +228,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
             << " (last: " << partitioning.tileHeightLast << "x" << partitioning.tileWidthLast << ")" << std::endl;
 
   PimObjGrid workingPimMemory = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
-                                  partitioning.tileHeight + 2*radius, colsToAllocate, allocStrategy);
+                                  partitioning.tileHeight + 2*radius, colsToAllocate, allocStrategy, radius);
   assert(partitioning.tileHeight + 2*radius == workingPimMemory.size());
 
   PimObjGrid rowsInSumCircularQueue = pimAllocGridAssociated(workingPimMemory[0], PIM_FP32, 2*radius+1);

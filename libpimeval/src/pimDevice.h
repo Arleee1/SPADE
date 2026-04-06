@@ -78,7 +78,8 @@ public:
   PimObjGrid pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numCoresVertical, size_t numCoresHorizontal,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
-                          PimAllocationStrategy allocationStrategy);
+                          PimAllocationStrategy allocationStrategy,
+                          size_t stencilRadius = 1);
   PimObjGrid pimAllocGridAssociated(PimObjId assocId, PimDataType dataType, size_t numElementsPerCoreVertical);
   bool pimFree(PimObjId obj);
   bool pimFreeGrid(PimObjGrid& grid);

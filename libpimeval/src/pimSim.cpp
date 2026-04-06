@@ -254,12 +254,13 @@ PimObjGrid
 pimSim::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numCoresVertical, size_t numCoresHorizontal,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
-                          PimAllocationStrategy allocationStrategy)
+                          PimAllocationStrategy allocationStrategy,
+                          size_t stencilRadius)
 {
   pimPerfMon perfMon("pimAllocGrid");
   if (!isValidDevice()) { return {}; }
   return m_device->pimAllocGrid(allocType, dataType, numCoresVertical,
-    numCoresHorizontal, numElementsPerCoreVertical, numElementsPerCoreHorizontal, allocationStrategy);
+    numCoresHorizontal, numElementsPerCoreVertical, numElementsPerCoreHorizontal, allocationStrategy, stencilRadius);
 }
 
 PimObjGrid

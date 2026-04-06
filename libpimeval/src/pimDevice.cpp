@@ -311,7 +311,8 @@ PimObjGrid
 pimDevice::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                           size_t numCoresVertical, size_t numCoresHorizontal,
                           size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
-                          PimAllocationStrategy allocationStrategy)
+                          PimAllocationStrategy allocationStrategy,
+                          size_t stencilRadius)
 {
   if (allocType == PIM_ALLOC_AUTO) {
     if (isVLayoutDevice()) {
@@ -322,7 +323,7 @@ pimDevice::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
       assert(0);
     }
   }
-  return m_resMgr->pimAllocGrid(allocType, dataType, numCoresVertical, numCoresHorizontal, numElementsPerCoreVertical, numElementsPerCoreHorizontal, allocationStrategy);
+  return m_resMgr->pimAllocGrid(allocType, dataType, numCoresVertical, numCoresHorizontal, numElementsPerCoreVertical, numElementsPerCoreHorizontal, allocationStrategy, stencilRadius);
 }
 
 PimObjGrid

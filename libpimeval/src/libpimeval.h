@@ -360,11 +360,13 @@ enum PimAllocationStrategy {
 //! @param numElementsPerCoreVertical: number of elements to allocate per core in the vertical direction
 //! @param numElementsPerCoreHorizontal: number of elements to allocate per core in the horizontal direction
 //! @param allocationStrategy: strategy to use for allocation, determines the layout of cores within memory
+//! @param stencilRadius: stencil halo radius used by stencil-aware allocation strategies
 //! @return PimObjGrid representing the allocated grid of cores
 PimObjGrid pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
                                     size_t numCoresVertical, size_t numCoresHorizontal,
                                     size_t numElementsPerCoreVertical, size_t numElementsPerCoreHorizontal,
-                                    PimAllocationStrategy allocationStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
+                                    PimAllocationStrategy allocationStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT,
+                                    size_t stencilRadius = 1);
 
 //! @brief Allocates more PimObjs associated with an existing PimObjId
 //! @param assocId: PimObjId to associate with

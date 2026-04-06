@@ -47,7 +47,7 @@ pimSimConfig::show() const
             (m_memConfigFile.empty() ? "<DEFAULT>" : m_memConfigFile.c_str()));
   std::printf("PIM-Config: Memory Protocol: %s\n", pimUtils::pimProtocolEnumToStr(m_memoryProtocol).c_str());
 
-  std::printf("PIM-Config: Current Device = %s, Simulation Target = %s\n", 
+  std::printf("PIM-Config: Current Device = %s, Simulation Target = %s\n",
             pimUtils::pimDeviceEnumToStr(m_deviceType).c_str(),
             pimUtils::pimDeviceEnumToStr(m_simTarget).c_str());
 
@@ -58,6 +58,7 @@ pimSimConfig::show() const
 
   std::printf("PIM-Config: Number of Threads = %u\n", m_numThreads);
   std::printf("PIM-Config: Load Balanced = %s\n", m_loadBalanced ? "1" : "0");
+  std::printf("PIM-Config: Model Intra-PIM Parallel = %s\n", m_modelIntraPimParallel ? "1" : "0");
   std::printf("PIM-Config: Inter-Bank Latency = %.2f ns\n", m_interBankLatencyNs);
   std::printf("PIM-Config: Inter-Rank Latency = %.2f ns\n", m_interRankLatencyNs);
   std::printf("PIM-Config: LISA Copy Coeff = %.3f\n", m_lisaCopyCoeff);
@@ -94,6 +95,7 @@ pimSimConfig::deriveConfig(PimDeviceEnum deviceType,
   ok = ok & deriveNumThreads();
   ok = ok & deriveMiscEnvVars();
   ok = ok & deriveLoadBalance();
+  ok = ok & deriveModelIntraPimParallel();
   ok = ok & deriveInterBankLatencyNs();
   ok = ok & deriveInterRankLatencyNs();
   ok = ok & deriveLisaCopyCoeff();
@@ -453,6 +455,34 @@ pimSimConfig::deriveLoadBalance()
         return false;
       }
       m_loadBalanced = (valStr == "1");
+    }
+  }
+  return true;
+}
+
+//! @brief  Derive Params: Model intra-PIM halo-copy transfer in parallel
+bool
+pimSimConfig::deriveModelIntraPimParallel()
+{
+  m_modelIntraPimParallel = true;  // on by default
+
+  // Check config file then env variable
+  bool hasVal = false;
+  std::string valStr = pimUtils::getOptionalParam(m_cfgParams, m_cfgVarModelIntraPimParallel, hasVal);
+  if (hasVal) {
+    if (valStr != "0" && valStr != "1") {
+      std::printf("PIM-Error: Incorrect config file parameter: %s=%s\n", m_cfgVarModelIntraPimParallel.c_str(), valStr.c_str());
+      return false;
+    }
+    m_modelIntraPimParallel = (valStr == "1");
+  } else {
+    valStr = pimUtils::getOptionalParam(m_envParams, m_envVarModelIntraPimParallel, hasVal);
+    if (hasVal) {
+      if (valStr != "0" && valStr != "1") {
+        std::printf("PIM-Error: Incorrect environment variable: %s=%s\n", m_envVarModelIntraPimParallel.c_str(), valStr.c_str());
+        return false;
+      }
+      m_modelIntraPimParallel = (valStr == "1");
     }
   }
   return true;

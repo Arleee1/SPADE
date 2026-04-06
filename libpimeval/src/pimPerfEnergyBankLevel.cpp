@@ -527,12 +527,12 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params
     }
   }
 
-  constexpr bool modelInterBankParallel = false;
+  const bool modelIntraPimParallel = params.firstObj.getDevice()->getConfig().isIntraPimParallelModeled();
 
   //! @todo grid: check with Farzana
   constexpr uint64_t interBankGranularity = 64;
   constexpr uint64_t interRankGranularity = 64;
-  const uint64_t interBankBytes = (modelInterBankParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
+  const uint64_t interBankBytes = (modelIntraPimParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
   const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
   const double msInterBank = interBankLatencyMs * (interBankBytes + interBankGranularity - 1) / interBankGranularity;
   const double msInterRank = interRankLatencyMs * (interRankBytes + interRankGranularity - 1) / interRankGranularity;

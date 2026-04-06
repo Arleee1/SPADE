@@ -483,6 +483,7 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params
     // Number of elements transferred banktobank within each rank
     std::vector<uint64_t> numElemPerRank(m_numRanks, 0);
     uint64_t maxElemPerRank = 0;
+    uint64_t totalElemInterBank = 0;
     uint64_t totalElemsAcrossRanks = 0;
 
     auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numElem) {
@@ -490,6 +491,7 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params
       if (coreOne.rank == coreTwo.rank) {
         numElemPerRank[coreOne.rank] += numElem;
         maxElemPerRank = std::max(maxElemPerRank, numElemPerRank[coreOne.rank]);
+        totalElemInterBank += numElem;
       } else {
         totalElemsAcrossRanks += numElem;
       }
@@ -525,14 +527,16 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params
       }
     }
 
+    constexpr bool modelInterBankParallel = true;
+
     //! @todo grid: check with Farzana
     constexpr uint64_t interBankGranularity = 64;
     constexpr uint64_t interRankGranularity = 64;
-    const uint64_t interBankBytes = maxElemPerRank * params.bytesPerElement;
+    const uint64_t interBankBytes = (modelInterBankParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
     const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
-    const double msMaxInterBank = interBankLatencyMs * (interRankBytes + interBankGranularity - 1) / interBankGranularity;
-    const double msTotalInterRank = interRankLatencyMs * (interBankBytes + interRankGranularity - 1) / interRankGranularity;
-    msRuntime += msMaxInterBank + msTotalInterRank;
+    const double msInterBank = interBankLatencyMs * (interBankBytes + interBankGranularity - 1) / interBankGranularity;
+    const double msInterRank = interRankLatencyMs * (interRankBytes + interRankGranularity - 1) / interRankGranularity;
+    msRuntime += msInterBank + msInterRank;
 
     totalOp *= params.bytesPerElement;
 
@@ -567,7 +571,7 @@ pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
     .bytesPerElement = bytesPerElement
   };
 
-  const bool usePimCopy = false;
+  const bool usePimCopy = true;
 
   double msRuntime = 0.0;
   double mjEnergy = 0.0;

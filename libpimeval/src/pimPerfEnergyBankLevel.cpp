@@ -468,80 +468,80 @@ pimPerfEnergyBankLevel::getPerfEnergyForPrefixSum(PimCmdEnum cmdType, const pimO
 
 pimeval::perfEnergy
 pimPerfEnergyBankLevel::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) const {
-    double msRuntime = 0.0;
-    double mjEnergy = 0.0;
-    double msRead = 0.0;
-    double msWrite = 0.0;
-    double msCompute = 0.0;
-    uint64_t totalOp = 0;
+  double msRuntime = 0.0;
+  double mjEnergy = 0.0;
+  double msRead = 0.0;
+  double msWrite = 0.0;
+  double msCompute = 0.0;
+  uint64_t totalOp = 0;
 
-    double interBankLatencyMs = params.firstObj.getDevice()->getConfig().getInterBankLatencyNs() / m_nano_to_milli;
-    double interRankLatencyMs = params.firstObj.getDevice()->getConfig().getInterRankLatencyNs() / m_nano_to_milli;
+  double interBankLatencyMs = params.firstObj.getDevice()->getConfig().getInterBankLatencyNs() / m_nano_to_milli;
+  double interRankLatencyMs = params.firstObj.getDevice()->getConfig().getInterRankLatencyNs() / m_nano_to_milli;
 
-    // Modeled as: all transfers within a rank in parallel, then all transfers accross ranks
+  // Modeled as: all transfers within a rank in parallel, then all transfers accross ranks
 
-    // Number of elements transferred banktobank within each rank
-    std::vector<uint64_t> numElemPerRank(m_numRanks, 0);
-    uint64_t maxElemPerRank = 0;
-    uint64_t totalElemInterBank = 0;
-    uint64_t totalElemsAcrossRanks = 0;
+  // Number of elements transferred banktobank within each rank
+  std::vector<uint64_t> numElemPerRank(m_numRanks, 0);
+  uint64_t maxElemPerRank = 0;
+  uint64_t totalElemInterBank = 0;
+  uint64_t totalElemsAcrossRanks = 0;
 
-    auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numElem) {
-      totalOp += numElem;
-      if (coreOne.rank == coreTwo.rank) {
-        numElemPerRank[coreOne.rank] += numElem;
-        maxElemPerRank = std::max(maxElemPerRank, numElemPerRank[coreOne.rank]);
-        totalElemInterBank += numElem;
-      } else {
-        totalElemsAcrossRanks += numElem;
+  auto updatePerfEnergyForHaloCopy = [&](const PimCoreLocation& coreOne, const PimCoreLocation& coreTwo, uint64_t numElem) {
+    totalOp += numElem;
+    if (coreOne.rank == coreTwo.rank) {
+      numElemPerRank[coreOne.rank] += numElem;
+      maxElemPerRank = std::max(maxElemPerRank, numElemPerRank[coreOne.rank]);
+      totalElemInterBank += numElem;
+    } else {
+      totalElemsAcrossRanks += numElem;
+    }
+  };
+
+  for(uint64_t coreY = 0; coreY < params.numCoresVertical; ++coreY) {
+    for(uint64_t coreX = 0; coreX < params.numCoresHorizontal; ++coreX) {
+      const uint64_t coreIndex = coreY * params.numCoresHorizontal + coreX;
+      const PimCoreLocation& coreLoc = params.coreLocations[coreIndex];
+      if (coreX > 0) {
+        const uint64_t leftCoreIndex = coreIndex - 1;
+        const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
+        const uint64_t numElems = 2 * params.numHalo * (params.numElementsPerCoreVertical - 2 * params.numHalo);
+        updatePerfEnergyForHaloCopy(coreLoc, leftCoreLoc, numElems);
       }
-    };
-
-    for(uint64_t coreY = 0; coreY < params.numCoresVertical; ++coreY) {
-      for(uint64_t coreX = 0; coreX < params.numCoresHorizontal; ++coreX) {
-        const uint64_t coreIndex = coreY * params.numCoresHorizontal + coreX;
-        const PimCoreLocation& coreLoc = params.coreLocations[coreIndex];
-        if (coreX > 0) {
-          const uint64_t leftCoreIndex = coreIndex - 1;
-          const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
-          const uint64_t numElems = 2 * params.numHalo * (params.numElementsPerCoreVertical - 2 * params.numHalo);
-          updatePerfEnergyForHaloCopy(coreLoc, leftCoreLoc, numElems);
-        }
-        if (coreY > 0) {
-          const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
-          const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
-          const uint64_t numElems = 2 * (params.numElementsPerCoreHorizontal - 2 * params.numHalo) * params.numHalo;
-          updatePerfEnergyForHaloCopy(coreLoc, aboveCoreLoc, numElems);
-        }
-        if (coreX > 0 && coreY > 0) {
-          const uint64_t leftCoreIndex = coreIndex - 1;
-          const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
-          const uint64_t aboveLeftCoreIndex = coreIndex - params.numCoresHorizontal - 1;
-          const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
-          const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
-          const PimCoreLocation& aboveLeftCoreLoc = params.coreLocations[aboveLeftCoreIndex];
-          const uint64_t numElems = 2 * params.numHalo * params.numHalo; // Both current <=> aboveLeft and left <=> above
-          updatePerfEnergyForHaloCopy(coreLoc, aboveLeftCoreLoc, numElems);
-          updatePerfEnergyForHaloCopy(leftCoreLoc, aboveCoreLoc, numElems);
-        }
+      if (coreY > 0) {
+        const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
+        const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
+        const uint64_t numElems = 2 * (params.numElementsPerCoreHorizontal - 2 * params.numHalo) * params.numHalo;
+        updatePerfEnergyForHaloCopy(coreLoc, aboveCoreLoc, numElems);
+      }
+      if (coreX > 0 && coreY > 0) {
+        const uint64_t leftCoreIndex = coreIndex - 1;
+        const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
+        const uint64_t aboveLeftCoreIndex = coreIndex - params.numCoresHorizontal - 1;
+        const PimCoreLocation& leftCoreLoc = params.coreLocations[leftCoreIndex];
+        const PimCoreLocation& aboveCoreLoc = params.coreLocations[aboveCoreIndex];
+        const PimCoreLocation& aboveLeftCoreLoc = params.coreLocations[aboveLeftCoreIndex];
+        const uint64_t numElems = 2 * params.numHalo * params.numHalo; // Both current <=> aboveLeft and left <=> above
+        updatePerfEnergyForHaloCopy(coreLoc, aboveLeftCoreLoc, numElems);
+        updatePerfEnergyForHaloCopy(leftCoreLoc, aboveCoreLoc, numElems);
       }
     }
-
-    constexpr bool modelInterBankParallel = true;
-
-    //! @todo grid: check with Farzana
-    constexpr uint64_t interBankGranularity = 64;
-    constexpr uint64_t interRankGranularity = 64;
-    const uint64_t interBankBytes = (modelInterBankParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
-    const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
-    const double msInterBank = interBankLatencyMs * (interBankBytes + interBankGranularity - 1) / interBankGranularity;
-    const double msInterRank = interRankLatencyMs * (interRankBytes + interRankGranularity - 1) / interRankGranularity;
-    msRuntime += msInterBank + msInterRank;
-
-    totalOp *= params.bytesPerElement;
-
-    return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
   }
+
+  constexpr bool modelInterBankParallel = false;
+
+  //! @todo grid: check with Farzana
+  constexpr uint64_t interBankGranularity = 64;
+  constexpr uint64_t interRankGranularity = 64;
+  const uint64_t interBankBytes = (modelInterBankParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
+  const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
+  const double msInterBank = interBankLatencyMs * (interBankBytes + interBankGranularity - 1) / interBankGranularity;
+  const double msInterRank = interRankLatencyMs * (interRankBytes + interRankGranularity - 1) / interRankGranularity;
+  msRuntime += msInterBank + msInterRank;
+
+  totalOp *= params.bytesPerElement;
+
+  return pimeval::perfEnergy(msRuntime, mjEnergy, msRead, msWrite, msCompute, totalOp);
+}
 
 pimeval::perfEnergy
 pimPerfEnergyBankLevel::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,

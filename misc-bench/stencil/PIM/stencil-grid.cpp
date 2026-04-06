@@ -132,7 +132,7 @@ struct Params getInputParams(int argc, char **argv)
 //! @param[in,out]  runningSum Temporary PIM object used for keeping track of the current running (vertical) sum
 //! @param[in]  stencilAreaToMultiplyPim This algorithm computes stencil average, thus each element in the result must be divided by the stencil area. This is done by multiplying by the inverse.
 //! @param[in]  radius  The stencil radius
-void computeStencilChunkIteration(std::span<PimObjId> workingPimMemory, std::span<PimObjId> rowsInSumCircularQueue, PimObjId tmpPim, PimObjId runningSum, const uint64_t stencilAreaToMultiplyPim, const uint64_t radius) {
+void updateStencilTile(std::span<PimObjId> workingPimMemory, std::span<PimObjId> rowsInSumCircularQueue, PimObjId tmpPim, PimObjId runningSum, const uint64_t stencilAreaToMultiplyPim, const uint64_t radius) {
   PimStatus status;
 
   uint64_t circularQueueBot = 0;
@@ -250,7 +250,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
 
 
   for(size_t iter = 0; iter < iterations; ++iter) {
-    computeStencilChunkIteration(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
+    updateStencilTile(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
 
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
       status = pimCopyGridHalo(workingPimMemory, radius);

@@ -721,20 +721,30 @@ pimResMgr::getCoresForGrid(
     const GridLayoutConfig layout = optimizeGridLayout(params);
 
     const uint64_t numRankHorizontal = layout.rankGridWidth;
+    const uint64_t numRankVertical = layout.rankGridHeight;
     const uint64_t numBankHorizontalPerRank = layout.bankGridWidth;
+    const uint64_t numBankVerticalPerRank = layout.bankGridHeight;
     const uint64_t numSubarrayHorizontalPerBank = layout.subarrayGridWidth;
+    const uint64_t numSubarrayVerticalPerBank = layout.subarrayGridHeight;
+    const uint64_t rankTileWidth = numBankHorizontalPerRank * numSubarrayHorizontalPerBank;
+    const uint64_t rankTileHeight = numBankVerticalPerRank * numSubarrayVerticalPerBank;
 
     std::vector<PimCoreId> cores(numCores);
     for (uint64_t coreRow = 0; coreRow < numCoresVertical; ++coreRow) {
-      const uint64_t rankRow = coreRow / layout.rankTileHeight;
-      const uint64_t bankRow = (coreRow % layout.rankTileHeight) / layout.bankTileHeight;
-      const uint64_t subarrayRow = coreRow % layout.bankTileHeight;
+      const uint64_t rankRow = coreRow / rankTileHeight;
+      const uint64_t bankRow = (coreRow / numSubarrayVerticalPerBank) % numBankVerticalPerRank;
+      const uint64_t subarrayRow = coreRow % numSubarrayVerticalPerBank;
       for (uint64_t coreCol = 0; coreCol < numCoresHorizontal; ++coreCol) {
         const uint64_t coreIdx = coreRow * numCoresHorizontal + coreCol;
 
-        const uint64_t rankCol = coreCol / layout.rankTileWidth;
-        const uint64_t bankCol = (coreCol % layout.rankTileWidth) / layout.bankTileWidth;
-        const uint64_t subarrayCol = coreCol % layout.bankTileWidth;
+        const uint64_t rankCol = coreCol / rankTileWidth;
+        const uint64_t bankCol = (coreCol / numSubarrayHorizontalPerBank) % numBankHorizontalPerRank;
+        const uint64_t subarrayCol = coreCol % numSubarrayHorizontalPerBank;
+
+        if (rankRow >= numRankVertical || rankCol >= numRankHorizontal) {
+          printf("PIM-Error: getCoresForGrid: Optimizer returned insufficient rank grid dimensions\n");
+          return {};
+        }
 
         const unsigned rankId = rankRow * numRankHorizontal + rankCol;
         const unsigned bankId = bankRow * numBankHorizontalPerRank + bankCol;

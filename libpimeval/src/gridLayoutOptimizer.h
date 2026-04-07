@@ -39,8 +39,11 @@ struct TotalMoveCostParams {
 struct GridLayoutConfig {
   double cost;
   uint64_t subarrayGridWidth;
+  uint64_t subarrayGridHeight;
   uint64_t bankGridWidth;
+  uint64_t bankGridHeight;
   uint64_t rankGridWidth;
+  uint64_t rankGridHeight;
   uint64_t bankTileWidth;
   uint64_t bankTileHeight;
   uint64_t rankTileWidth;

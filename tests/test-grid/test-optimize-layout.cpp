@@ -104,6 +104,22 @@ int main()
               1.0,
           },
       },
+        {
+          "Non-divisible subarray packing",
+          {
+            64,
+            64,
+            16,
+            1,
+            1,
+            5,
+            3,
+            1,
+            1.0,
+            20.0,
+            100.0,
+          },
+        },
   };
 
   bool ok = true;
@@ -123,9 +139,9 @@ int main()
 
         const GridLayoutConfig& best = rankedLayouts.front();
         std::cout << "OPTIMAL CONFIGURATION:" << std::endl;
-        std::cout << "  subarray_grid_width = " << best.subarrayGridWidth << std::endl;
-        std::cout << "  bank_grid_width = " << best.bankGridWidth << std::endl;
-        std::cout << "  rank_grid_width = " << best.rankGridWidth << std::endl;
+        std::cout << "  subarray_grid = " << best.subarrayGridWidth << "x" << best.subarrayGridHeight << std::endl;
+        std::cout << "  bank_grid = " << best.bankGridWidth << "x" << best.bankGridHeight << std::endl;
+        std::cout << "  rank_grid = " << best.rankGridWidth << "x" << best.rankGridHeight << std::endl;
         std::cout << "  Total move cost = " << best.cost << std::endl;
 
         std::cout << std::endl;
@@ -134,16 +150,16 @@ int main()
         for (std::size_t rank = 0; rank < topK; ++rank) {
           const GridLayoutConfig& config = rankedLayouts[rank];
           std::cout << (rank + 1) << ". Cost=" << config.cost
-                    << "  subarray=" << config.subarrayGridWidth
-                    << ", bank=" << config.bankGridWidth
-                    << ", rank=" << config.rankGridWidth << std::endl;
+                    << "  subarray=" << config.subarrayGridWidth << "x" << config.subarrayGridHeight
+                    << ", bank=" << config.bankGridWidth << "x" << config.bankGridHeight
+                    << ", rank=" << config.rankGridWidth << "x" << config.rankGridHeight << std::endl;
         }
       } else {
         const GridLayoutConfig best = optimizeGridLayout(scenario.params);
         std::cout << "OPTIMAL CONFIGURATION:" << std::endl;
-        std::cout << "  subarray_grid_width = " << best.subarrayGridWidth << std::endl;
-        std::cout << "  bank_grid_width = " << best.bankGridWidth << std::endl;
-        std::cout << "  rank_grid_width = " << best.rankGridWidth << std::endl;
+        std::cout << "  subarray_grid = " << best.subarrayGridWidth << "x" << best.subarrayGridHeight << std::endl;
+        std::cout << "  bank_grid = " << best.bankGridWidth << "x" << best.bankGridHeight << std::endl;
+        std::cout << "  rank_grid = " << best.rankGridWidth << "x" << best.rankGridHeight << std::endl;
         std::cout << "  Total move cost = " << best.cost << std::endl;
       }
     } catch (const std::exception& ex) {

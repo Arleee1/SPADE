@@ -13,23 +13,47 @@
 
 #include "gridLayoutOptimizer.h"
 
-std::vector<uint64_t> getDivisors(const uint64_t n) {
-  if (n == 0) {
-    throw std::invalid_argument("cannot compute divisors for zero");
+struct LayoutPair {
+  uint64_t width;
+  uint64_t height;
+};
+
+bool lessByWidthThenHeight(const LayoutPair& lhs, const LayoutPair& rhs) {
+  if (lhs.width != rhs.width) {
+    return lhs.width < rhs.width;
+  }
+  return lhs.height < rhs.height;
+}
+
+std::vector<LayoutPair> getPossibleLayouts(const uint64_t capacity) {
+  if (capacity == 0) {
+    throw std::invalid_argument("cannot compute layouts for zero capacity");
   }
 
-  std::vector<uint64_t> divisors;
-  for (uint64_t i = 1; i <= n / i; ++i) {
-    if (n % i == 0) {
-      divisors.push_back(i);
-      const uint64_t pair = n / i;
-      if (pair != i) {
-        divisors.push_back(pair);
-      }
+  std::vector<LayoutPair> layouts;
+  for (uint64_t width = 1; width <= capacity; ++width) {
+    const uint64_t maxHeight = capacity / width;
+    for (uint64_t height = 1; height <= maxHeight; ++height) {
+      layouts.push_back({width, height});
     }
   }
-  std::sort(divisors.begin(), divisors.end());
-  return divisors;
+
+  std::sort(layouts.begin(), layouts.end(), lessByWidthThenHeight);
+  layouts.erase(
+      std::unique(layouts.begin(), layouts.end(), [](const LayoutPair& lhs, const LayoutPair& rhs) {
+        return lhs.width == rhs.width && lhs.height == rhs.height;
+      }),
+      layouts.end());
+  return layouts;
+}
+
+bool isLayoutWithinCapacity(const uint64_t width,
+                            const uint64_t height,
+                            const uint64_t capacity) {
+  if (width == 0 || height == 0 || capacity == 0) {
+    return false;
+  }
+  return width <= capacity && height <= (capacity / width);
 }
 
 //! @brief Calculate number of transferred elements from neighbor-pair counts
@@ -130,24 +154,27 @@ BoundaryPairCounts countBoundaryPairsByLevel(const uint64_t totalGridWidth,
 
 //! @brief Calculate the total data movement cost for a given blocking configuration and hardware configuration
 //! @param subarrayGridWidth The number of subarrays in the horizontal direction of the grid (per bank)
+//! @param subarrayGridHeight The number of subarrays in the vertical direction of the grid (per bank)
 //! @param bankGridWidth The number of banks in the horizontal direction of the grid (per rank)
+//! @param bankGridHeight The number of banks in the vertical direction of the grid (per rank)
 //! @param rankGridWidth The number of ranks in the horizontal direction of the grid
+//! @param rankGridHeight The number of ranks in the vertical direction of the grid
 //! @param params Grouped block, hardware topology, halo, and transfer cost parameters
 double totalMoveCost(const uint64_t subarrayGridWidth,
+                     const uint64_t subarrayGridHeight,
                      const uint64_t bankGridWidth,
+                     const uint64_t bankGridHeight,
                      const uint64_t rankGridWidth,
+                     const uint64_t rankGridHeight,
                      const TotalMoveCostParams& params) {
-  if (subarrayGridWidth == 0 || bankGridWidth == 0 || rankGridWidth == 0) {
-    throw std::invalid_argument("grid widths must be non-zero");
+  if (!isLayoutWithinCapacity(subarrayGridWidth, subarrayGridHeight, params.subarraysPerBank)) {
+    throw std::invalid_argument("subarray layout exceeds subarraysPerBank capacity");
   }
-  if (params.subarraysPerBank % subarrayGridWidth != 0) {
-    throw std::invalid_argument("subarraysPerBank must be divisible by subarrayGridWidth");
+  if (!isLayoutWithinCapacity(bankGridWidth, bankGridHeight, params.banksPerRank)) {
+    throw std::invalid_argument("bank layout exceeds banksPerRank capacity");
   }
-  if (params.banksPerRank % bankGridWidth != 0) {
-    throw std::invalid_argument("banksPerRank must be divisible by bankGridWidth");
-  }
-  if (params.ranks % rankGridWidth != 0) {
-    throw std::invalid_argument("ranks must be divisible by rankGridWidth");
+  if (!isLayoutWithinCapacity(rankGridWidth, rankGridHeight, params.ranks)) {
+    throw std::invalid_argument("rank layout exceeds ranks capacity");
   }
   if (params.totalGridWidth == 0 || params.totalGridHeight == 0) {
     throw std::invalid_argument("total grid dimensions must be non-zero");
@@ -160,10 +187,6 @@ double totalMoveCost(const uint64_t subarrayGridWidth,
   if (params.subarrayBlockWidth < twoRadius || params.subarrayBlockHeight < twoRadius) {
     throw std::invalid_argument("subarray block dimensions must be >= 2 * radius");
   }
-
-  const uint64_t subarrayGridHeight = params.subarraysPerBank / subarrayGridWidth;
-  const uint64_t bankGridHeight = params.banksPerRank / bankGridWidth;
-  const uint64_t rankGridHeight = params.ranks / rankGridWidth;
 
   const uint64_t totalLayoutWidthInSubarrays = subarrayGridWidth * bankGridWidth * rankGridWidth;
   const uint64_t totalLayoutHeightInSubarrays = subarrayGridHeight * bankGridHeight * rankGridHeight;
@@ -216,23 +239,32 @@ bool lessByCostThenShape(const GridLayoutConfig& lhs, const GridLayoutConfig& rh
   if (lhs.subarrayGridWidth != rhs.subarrayGridWidth) {
     return lhs.subarrayGridWidth < rhs.subarrayGridWidth;
   }
+  if (lhs.subarrayGridHeight != rhs.subarrayGridHeight) {
+    return lhs.subarrayGridHeight < rhs.subarrayGridHeight;
+  }
   if (lhs.bankGridWidth != rhs.bankGridWidth) {
     return lhs.bankGridWidth < rhs.bankGridWidth;
   }
-  return lhs.rankGridWidth < rhs.rankGridWidth;
+  if (lhs.bankGridHeight != rhs.bankGridHeight) {
+    return lhs.bankGridHeight < rhs.bankGridHeight;
+  }
+  if (lhs.rankGridWidth != rhs.rankGridWidth) {
+    return lhs.rankGridWidth < rhs.rankGridWidth;
+  }
+  return lhs.rankGridHeight < rhs.rankGridHeight;
 }
 
-struct GridDivisors {
-  std::vector<uint64_t> subarray;
-  std::vector<uint64_t> bank;
-  std::vector<uint64_t> rank;
+struct GridLayouts {
+  std::vector<LayoutPair> subarray;
+  std::vector<LayoutPair> bank;
+  std::vector<LayoutPair> rank;
 };
 
-GridDivisors getGridDivisors(const TotalMoveCostParams& params) {
+GridLayouts getGridLayouts(const TotalMoveCostParams& params) {
   return {
-      getDivisors(params.subarraysPerBank),
-      getDivisors(params.banksPerRank),
-      getDivisors(params.ranks),
+      getPossibleLayouts(params.subarraysPerBank),
+      getPossibleLayouts(params.banksPerRank),
+      getPossibleLayouts(params.ranks),
   };
 }
 
@@ -249,7 +281,7 @@ bool tryMultiply3(const uint64_t a, const uint64_t b, const uint64_t c, uint64_t
 }
 
 template <typename ConsumeFn>
-void forEachGridLayoutCandidate(const GridDivisors& divisors,
+void forEachGridLayoutCandidate(const GridLayouts& layouts,
                                 const TotalMoveCostParams& params,
                                 ConsumeFn consume) {
   if (params.totalGridWidth == 0 || params.totalGridHeight == 0) {
@@ -257,12 +289,15 @@ void forEachGridLayoutCandidate(const GridDivisors& divisors,
   }
 
   bool hasCandidate = false;
-  for (const uint64_t subarrayGridWidth : divisors.subarray) {
-    const uint64_t subarrayGridHeight = params.subarraysPerBank / subarrayGridWidth;
-    for (const uint64_t bankGridWidth : divisors.bank) {
-      const uint64_t bankGridHeight = params.banksPerRank / bankGridWidth;
-      for (const uint64_t rankGridWidth : divisors.rank) {
-        const uint64_t rankGridHeight = params.ranks / rankGridWidth;
+  for (const LayoutPair& subarrayLayout : layouts.subarray) {
+    const uint64_t subarrayGridWidth = subarrayLayout.width;
+    const uint64_t subarrayGridHeight = subarrayLayout.height;
+    for (const LayoutPair& bankLayout : layouts.bank) {
+      const uint64_t bankGridWidth = bankLayout.width;
+      const uint64_t bankGridHeight = bankLayout.height;
+      for (const LayoutPair& rankLayout : layouts.rank) {
+        const uint64_t rankGridWidth = rankLayout.width;
+        const uint64_t rankGridHeight = rankLayout.height;
 
         uint64_t totalWidthInSubarrays = 0;
         uint64_t totalHeightInSubarrays = 0;
@@ -279,8 +314,24 @@ void forEachGridLayoutCandidate(const GridDivisors& divisors,
         const uint64_t bankTileHeight = subarrayGridHeight;
         const uint64_t rankTileWidth = bankGridWidth * bankTileWidth;
         const uint64_t rankTileHeight = bankGridHeight * bankTileHeight;
-        const double cost = totalMoveCost(subarrayGridWidth, bankGridWidth, rankGridWidth, params);
-        consume(GridLayoutConfig{cost, subarrayGridWidth, bankGridWidth, rankGridWidth, bankTileWidth, bankTileHeight, rankTileWidth, rankTileHeight});
+        const double cost = totalMoveCost(subarrayGridWidth,
+                                          subarrayGridHeight,
+                                          bankGridWidth,
+                                          bankGridHeight,
+                                          rankGridWidth,
+                                          rankGridHeight,
+                                          params);
+        consume(GridLayoutConfig{cost,
+                                 subarrayGridWidth,
+                                 subarrayGridHeight,
+                                 bankGridWidth,
+                                 bankGridHeight,
+                                 rankGridWidth,
+                                 rankGridHeight,
+                                 bankTileWidth,
+                                 bankTileHeight,
+                                 rankTileWidth,
+                                 rankTileHeight});
         hasCandidate = true;
       }
     }
@@ -292,11 +343,11 @@ void forEachGridLayoutCandidate(const GridDivisors& divisors,
 }
 
 std::vector<GridLayoutConfig> rankGridLayouts(const TotalMoveCostParams& params) {
-  const GridDivisors divisors = getGridDivisors(params);
+  const GridLayouts layouts = getGridLayouts(params);
 
   std::vector<GridLayoutConfig> allResults;
-  allResults.reserve(divisors.subarray.size() * divisors.bank.size() * divisors.rank.size());
-  forEachGridLayoutCandidate(divisors, params, [&](const GridLayoutConfig& candidate) {
+  allResults.reserve(layouts.subarray.size() * layouts.bank.size() * layouts.rank.size());
+  forEachGridLayoutCandidate(layouts, params, [&](const GridLayoutConfig& candidate) {
     allResults.push_back(candidate);
   });
 
@@ -306,11 +357,11 @@ std::vector<GridLayoutConfig> rankGridLayouts(const TotalMoveCostParams& params)
 
 //! @details heurestic. Assumes that optimal blocking will be rectangular.
 GridLayoutConfig optimizeGridLayout(const TotalMoveCostParams& params) {
-  const GridDivisors divisors = getGridDivisors(params);
+  const GridLayouts layouts = getGridLayouts(params);
 
   GridLayoutConfig best{};
   bool hasBest = false;
-  forEachGridLayoutCandidate(divisors, params, [&](const GridLayoutConfig& candidate) {
+  forEachGridLayoutCandidate(layouts, params, [&](const GridLayoutConfig& candidate) {
     if (!hasBest || lessByCostThenShape(candidate, best)) {
       best = candidate;
       hasBest = true;

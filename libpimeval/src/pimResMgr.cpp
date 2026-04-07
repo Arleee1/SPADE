@@ -709,7 +709,8 @@ pimResMgr::getCoresForGrid(
     params.subarrayBlockWidth = numElementsPerCoreHorizontal;
     params.subarrayBlockHeight = numElementsPerCoreVertical;
     // The naming here conflates subarrays and cores, so for bank core devices the number of subarrays (read: cores) per bank is 1
-    params.subarraysPerBank = m_device->isBankCoreDevice() ? 1 : subarraysPerBank;
+    // 2 subarrays per core
+    params.subarraysPerBank = m_device->isBankCoreDevice() ? 1 : subarraysPerBank / 2;
     params.banksPerRank = banksPerRank;
     params.ranks = ranks;
     params.totalGridWidth = numCoresHorizontal;

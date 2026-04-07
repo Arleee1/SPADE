@@ -777,6 +777,11 @@ pimResMgr::pimAllocGrid(PimAllocEnum allocType, PimDataType dataType,
            pimUtils::pimDataTypeEnumToStr(dataType).c_str());
   }
 
+  if (m_device->getConfig().isLoadBalanced()) {
+    printf("PIM-Error: pimAllocGrid: Grid allocation is not supported under load-balanced configuration\n");
+    return {};
+  }
+
   if (numElementsPerCoreVertical == 0 || numElementsPerCoreHorizontal == 0) {
     printf("PIM-Error: pimAllocGrid: Invalid input parameter: 0 elements per core\n");
     return {};

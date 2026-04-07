@@ -715,9 +715,9 @@ pimResMgr::getCoresForGrid(
     params.totalGridWidth = numCoresHorizontal;
     params.totalGridHeight = numCoresVertical;
     params.radius = static_cast<uint64_t>(stencilRadius);
-    params.transferCostSubarrayToSubarray = 4.6846799999999997e-06;
-    params.transferCostBankToBank = 5.3299999999999995e-05;
-    params.transferCostRankToRank = 5.9969999999999997e-05 + params.transferCostBankToBank;
+    params.transferCostSubarrayToSubarray = m_device->getInterSubarrayMsPerByte();
+    params.transferCostBankToBank = m_device->getInterBankMsPerByte();
+    params.transferCostRankToRank = m_device->getInterRankMsPerByte();
     const GridLayoutConfig layout = optimizeGridLayout(params);
 
     const uint64_t numRankHorizontal = layout.rankGridWidth;

@@ -98,6 +98,43 @@ pimDevice::isHybridLayoutDevice() const
   return pimUtils::getDeviceDataLayout(getSimTarget()) == PimDataLayout::HYBRID;
 }
 
+//! @brief  Get inter-rank transfer latency per byte in ms
+//! @attention Simplified model
+double
+pimDevice::getInterRankMsPerByte() const
+{
+  constexpr double nanoToMilli = 1000000.0;
+  constexpr double interRankGranularity = 64.0;
+  const double interRankLatencyMs = m_config.getInterRankLatencyNs() / nanoToMilli;
+  return interRankLatencyMs / interRankGranularity;
+}
+
+//! @brief  Get inter-bank transfer latency per byte in ms
+//! @attention Simplified model
+double
+pimDevice::getInterBankMsPerByte() const
+{
+  constexpr double nanoToMilli = 1000000.0;
+  constexpr double interBankGranularity = 64.0;
+  const double interBankLatencyMs = m_config.getInterBankLatencyNs() / nanoToMilli;
+  return interBankLatencyMs / interBankGranularity;
+}
+
+//! @brief  Get inter-subarray transfer latency per byte in ms
+//! @attention Simplified model
+double
+pimDevice::getInterSubarrayMsPerByte() const
+{
+  constexpr double nanoToMilli = 1000000.0;
+  constexpr double interSubarrayGranularity = 1024.0;
+
+  const pimParamsDram& paramsDram = pimSim::get()->getParamsDram();
+  const double tCKMs = paramsDram.gettCK() / nanoToMilli;
+  const double lisaCopy = m_config.getLisaCopyCoeff() * paramsDram.gettRAS() * tCKMs;
+
+  return lisaCopy / interSubarrayGranularity;
+}
+
 //! @brief  Init PIM device
 bool
 pimDevice::init()

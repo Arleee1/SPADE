@@ -419,13 +419,12 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
     double msCompute = 0.0;
     uint64_t totalOp = 0;
 
-    const double interRankLatencyMs = params.firstObj.getDevice()->getConfig().getInterRankLatencyNs() / m_nano_to_milli;
-    const double interBankLatencyMs = params.firstObj.getDevice()->getConfig().getInterBankLatencyNs() / m_nano_to_milli;
-    const double lisaCopyCoeff = params.firstObj.getDevice()->getConfig().getLisaCopyCoeff();
-    const double lisaCopy = lisaCopyCoeff * m_tRAS * m_tCK; // in ms
-    const double interSubarrayLatencyMs = lisaCopy; // assume same as lisa copy
+    const pimDevice* device = params.firstObj.getDevice();
+    const double interRankMsPerByte = device->getInterRankMsPerByte();
+    const double interBankMsPerByte = device->getInterBankMsPerByte();
+    const double interSubarrayMsPerByte = device->getInterSubarrayMsPerByte();
 
-    unsigned bankPerRank = params.firstObj.getDevice()->getNumBankPerRank();
+    unsigned bankPerRank = device->getNumBankPerRank();
     // Modeled as:
     // All intra-bank transfers in parallel -> max time of intra-bank transfers
     // All intra-rank transfers in parallel -> max time of intra-rank transfers
@@ -501,20 +500,11 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
     // if true, assumes that all inter-bank transfers within a rank can be parallelized
     //              in this case, the latency is determined by the rank with the maximum number of inter-bank transfers
     // if false, assumes sequential inter-bank transfers, and the latency is determined by the total number of inter-bank transfers across all ranks
-    const bool modelIntraPimParallel = params.firstObj.getDevice()->getConfig().isIntraPimParallelModeled();
-
-    //! @attention This is a simplification
-    constexpr uint64_t interRankGranularity = 64;
-    constexpr uint64_t interBankGranularity = 64;
-    constexpr uint64_t interSubarrayGranularity = 1024;
+    const bool modelIntraPimParallel = device->getConfig().isIntraPimParallelModeled();
 
     const uint64_t interRankBytes = totalElemsAcrossRanks * params.bytesPerElement;
     const uint64_t interBankBytes = (modelIntraPimParallel ? maxElemPerRank : totalElemInterBank) * params.bytesPerElement;
     const uint64_t interSubarrayBytes = (modelIntraPimParallel ? maxElemPerBank : totalElemInterSubarray) * params.bytesPerElement;
-
-    const double interRankMsPerByte = interRankLatencyMs / static_cast<double>(interRankGranularity);
-    const double interBankMsPerByte = interBankLatencyMs / static_cast<double>(interBankGranularity);
-    const double interSubarrayMsPerByte = interSubarrayLatencyMs / static_cast<double>(interSubarrayGranularity);
 
     const double msInterRank = interRankMsPerByte * interRankBytes;
     const double msInterBank = interBankMsPerByte * interBankBytes;

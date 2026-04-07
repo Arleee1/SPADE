@@ -54,6 +54,9 @@ public:
   unsigned getNumRowPerSubarray() const { return m_config.getNumRowPerSubarray(); }
   unsigned getNumColPerSubarray() const { return m_config.getNumColPerSubarray(); }
   unsigned getOnChipBufferSize() const { return m_config.getBufferSize(); }
+  double getInterRankMsPerByte() const;
+  double getInterBankMsPerByte() const;
+  double getInterSubarrayMsPerByte() const;
 
   unsigned getNumCores() const { return m_numCores; }
   unsigned getNumRows() const { return m_numRows; }

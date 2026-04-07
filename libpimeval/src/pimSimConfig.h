@@ -31,7 +31,7 @@
 //!   inter_bank_latency_ns = <double>           // inter-bank aggregation latency in ns (default: 53.3)
 //!   inter_rank_latency_ns = <double>           // inter-rank aggregation latency in ns (default: 59.97)
 //!   lisa_copy_coeff = <double>                 // LISA copy coefficient (default: 0.143)
-//!   model_intra_pim_parallel = <0|1>           // model halo-copy intra-PIM transfer as parallel (default: 1)
+//!   model_intra_pim_parallel = <0|1>           // model halo-copy intra-PIM transfer as parallel (default: 0)
 //!
 //! Supported environment variables:
 //!   PIMEVAL_SIM_CONFIG <abs-path/cfg-file>     // PIMeval config file, e.g., abs-path/PIMeval_BitSimdV.cfg
@@ -230,7 +230,7 @@ private:
     m_analysisMode = false;
     m_debug = 0;
     m_loadBalanced = false;
-    m_modelIntraPimParallel = true;
+    m_modelIntraPimParallel = false;
     m_interBankLatencyNs = DEFAULT_INTER_BANK_LATENCY_NS;
     m_interRankLatencyNs = DEFAULT_INTER_RANK_LATENCY_NS;
     m_lisaCopyCoeff = DEFAULT_LISA_COPY_COEFF;

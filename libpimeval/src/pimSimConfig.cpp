@@ -464,7 +464,7 @@ pimSimConfig::deriveLoadBalance()
 bool
 pimSimConfig::deriveModelIntraPimParallel()
 {
-  m_modelIntraPimParallel = true;  // on by default
+  m_modelIntraPimParallel = false;  // off by default
 
   // Check config file then env variable
   bool hasVal = false;

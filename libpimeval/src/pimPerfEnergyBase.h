@@ -83,6 +83,7 @@ public:
                                                         uint64_t numElementsPerCoreVertical,
                                                         uint64_t numElementsPerCoreHorizontal,
                                                         uint64_t numHalo,
+                                                        StencilPattern stencilPattern,
                                                         const pimObjInfo& firstObj) const;
 
 protected:
@@ -94,6 +95,7 @@ protected:
     uint64_t numElementsPerCoreVertical;
     uint64_t numElementsPerCoreHorizontal;
     uint64_t numHalo;
+    StencilPattern stencilPattern;
     const pimObjInfo& firstObj;
     unsigned bytesPerElement;
   };

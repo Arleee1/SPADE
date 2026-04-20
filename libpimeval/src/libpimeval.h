@@ -355,6 +355,12 @@ enum PimAllocationStrategy {
   PIM_ALLOCATION_STRATEGY_RANDOM,
 };
 
+//! @brief  Stencil pattern types
+enum StencilPattern {
+  STENCIL_PATTERN_BOX = 0,
+  STENCIL_PATTERN_STAR,
+};
+
 //! @brief Allocate grid of cores, with specified sizes of data per core
 //! @param allocType: type of allocation (e.g. PIM_ALLOC_AUTO)
 //! @param dataType: type of data to be allocated
@@ -416,8 +422,11 @@ PimStatus pimFreeGrid(PimObjGrid& grid);
 //! @brief Copies adjacent elements between cores in a PimObjGrid to enable communication between PIM cores
 //! @param srcGrid: PimObjGrid allocated by pimAllocGrid
 //! @param numHalo: number of adjacent elements to copy between cores (e.g., numHalo=1 for 1 halo element)
+//! @param stencilPattern: halo pattern selector. Use STENCIL_PATTERN_BOX (box/diagonal halo exchange)
+//!                        or STENCIL_PATTERN_STAR (star/no diagonal halo exchange)
 //! @return PimStatus indicating success or failure
-PimStatus pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo);
+PimStatus pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo,
+                          StencilPattern stencilPattern = STENCIL_PATTERN_BOX);
 
 
 #endif

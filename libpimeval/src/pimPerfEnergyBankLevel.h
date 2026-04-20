@@ -36,6 +36,7 @@ public:
                                                         uint64_t numElementsPerCoreVertical,
                                                         uint64_t numElementsPerCoreHorizontal,
                                                         uint64_t numHalo,
+                                                        StencilPattern stencilPattern,
                                                         const pimObjInfo& firstObj) const override;
 
 protected:

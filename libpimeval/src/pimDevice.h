@@ -101,7 +101,8 @@ public:
                             uint64_t idxBeginX = 0, uint64_t idxEndX = 0,
                             uint64_t idxBeginY = 0, uint64_t idxEndY = 0,
                             uint64_t idxEndXLast = 0, uint64_t idxEndYLast = 0);
-  bool pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo);
+  bool pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo,
+                       StencilPattern stencilPattern = STENCIL_PATTERN_BOX);
   bool pimCopyDeviceToDevice(PimObjId src, PimObjId dest, uint64_t idxBegin = 0, uint64_t idxEnd = 0);
 
   pimResMgr* getResMgr() { return m_resMgr.get(); }

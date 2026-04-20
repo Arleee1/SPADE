@@ -23,13 +23,6 @@
 #include "utilGrid.h"
 #include "libpimeval.h"
 
-
-//! @brief  Stencil pattern types
-enum StencilPattern {
-  STENCIL_PATTERN_BOX = 0,
-  STENCIL_PATTERN_STAR,
-};
-
 // Params ---------------------------------------------------------------------
 typedef struct Params
 {
@@ -362,7 +355,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
                                        partitioning.tileHeightLast + radius);
   assert(status == PIM_OK);
 
-  status = pimCopyGridHalo(workingPimMemory, radius); //todofinal: add 5 point
+  status = pimCopyGridHalo(workingPimMemory, radius, stencilPattern);
   assert(status == PIM_OK);
 
 
@@ -378,7 +371,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
     }
 
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
-      status = pimCopyGridHalo(workingPimMemory, radius);
+      status = pimCopyGridHalo(workingPimMemory, radius, stencilPattern);
       assert(status == PIM_OK);
     }
   }

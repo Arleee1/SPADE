@@ -207,9 +207,9 @@ PimStatus pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
   return ok ? PIM_OK : PIM_ERROR;
 }
 
-PimStatus pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo)
+PimStatus pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo, StencilPattern stencilPattern)
 {
-  bool ok = pimSim::get()->pimCopyGridHalo(srcGrid, numHalo);
+  bool ok = pimSim::get()->pimCopyGridHalo(srcGrid, numHalo, stencilPattern);
   return ok ? PIM_OK : PIM_ERROR;
 }
 

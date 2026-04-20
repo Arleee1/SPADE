@@ -242,8 +242,8 @@ protected:
 class pimCmdCopyHalo : public pimCmd
 {
 public:
-  pimCmdCopyHalo(PimCopyEnum copyType, PimObjGrid& srcGrid, uint64_t numHalo)
-    : pimCmd(PimCmdEnum::COPY_GRID_HALO), m_copyType(copyType), m_srcGrid(srcGrid), m_numHalo(numHalo) {}
+  pimCmdCopyHalo(PimCopyEnum copyType, PimObjGrid& srcGrid, uint64_t numHalo, StencilPattern stencilPattern)
+    : pimCmd(PimCmdEnum::COPY_GRID_HALO), m_copyType(copyType), m_srcGrid(srcGrid), m_numHalo(numHalo), m_stencilPattern(stencilPattern) {}
 
   virtual ~pimCmdCopyHalo() {}
   virtual bool execute() override;
@@ -254,6 +254,7 @@ private:
   PimCopyEnum m_copyType;
   PimObjGrid m_srcGrid;
   uint64_t m_numHalo = 0;
+  StencilPattern m_stencilPattern = STENCIL_PATTERN_BOX;
 };
 
 //! @class  pimCmdFunc1

@@ -418,6 +418,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
     double msWrite = 0.0;
     double msCompute = 0.0;
     uint64_t totalOp = 0;
+    const bool includeDiagonalHalo = params.stencilPattern != STENCIL_PATTERN_STAR;
 
     const pimDevice* device = params.firstObj.getDevice();
     const double interRankMsPerByte = device->getInterRankMsPerByte();
@@ -478,7 +479,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopyPim(const HaloCopyParams& params) 
           const uint64_t numElems = 2 * (params.numElementsPerCoreHorizontal - 2 * params.numHalo) * params.numHalo;
           updatePerfEnergyForHaloCopy(coreLoc, aboveCoreLoc, numElems);
         }
-        if (coreX > 0 && coreY > 0) {
+        if (includeDiagonalHalo && coreX > 0 && coreY > 0) {
           const uint64_t leftCoreIndex = coreIndex - 1;
           const uint64_t aboveCoreIndex = coreIndex - params.numCoresHorizontal;
           const uint64_t aboveLeftCoreIndex = coreIndex - params.numCoresHorizontal - 1;
@@ -526,6 +527,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
                                                uint64_t numElementsPerCoreVertical,
                                                uint64_t numElementsPerCoreHorizontal,
                                                uint64_t numHalo,
+                                               StencilPattern stencilPattern,
                                                const pimObjInfo& firstObj) const
 {
   assert(numCoresVertical * numCoresHorizontal == coreLocations.size());
@@ -542,6 +544,7 @@ pimPerfEnergyFulcrum::getPerfEnergyForHaloCopy(PimCmdEnum cmdType,
     .numElementsPerCoreVertical = numElementsPerCoreVertical,
     .numElementsPerCoreHorizontal = numElementsPerCoreHorizontal,
     .numHalo = numHalo,
+    .stencilPattern = stencilPattern,
     .firstObj = firstObj,
     .bytesPerElement = bytesPerElement
   };

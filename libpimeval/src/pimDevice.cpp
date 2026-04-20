@@ -460,14 +460,14 @@ pimDevice::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
 
 //! @brief  Copy halo elements between adjacent cores in a PimObjGrid
 bool
-pimDevice::pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo)
+pimDevice::pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo, StencilPattern stencilPattern)
 {
   assert(!srcGrid.empty());
   assert(numHalo > 0);
 
   PimCopyEnum copyType = m_resMgr->isHLayoutObj(srcGrid[0]) ? PIM_COPY_H : PIM_COPY_V;
   std::unique_ptr<pimCmd> cmd =
-    std::make_unique<pimCmdCopyHalo>(copyType, srcGrid, numHalo);
+    std::make_unique<pimCmdCopyHalo>(copyType, srcGrid, numHalo, stencilPattern);
   return executeCmd(std::move(cmd));
 }
 

@@ -367,11 +367,11 @@ pimSim::pimCopyGridToHost(PimObjGrid& srcGrid, void* dest,
 }
 
 bool
-pimSim::pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo)
+pimSim::pimCopyGridHalo(PimObjGrid& srcGrid, uint64_t numHalo, StencilPattern stencilPattern)
 {
   pimPerfMon perfMon("pimCopyGridHalo");
   if (!isValidDevice()) { return false; }
-  return m_device->pimCopyGridHalo(srcGrid, numHalo);
+  return m_device->pimCopyGridHalo(srcGrid, numHalo, stencilPattern);
 }
 
 // @brief  Copy data from PIM device to device within a range

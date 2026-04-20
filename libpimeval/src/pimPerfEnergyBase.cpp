@@ -218,6 +218,7 @@ pimPerfEnergyBase::getPerfEnergyForHaloCopy([[maybe_unused]] PimCmdEnum cmdType,
                                             [[maybe_unused]] uint64_t numElementsPerCoreVertical,
                                             [[maybe_unused]] uint64_t numElementsPerCoreHorizontal,
                                             [[maybe_unused]] uint64_t numHalo,
+                                            [[maybe_unused]] StencilPattern stencilPattern,
                                             [[maybe_unused]] const pimObjInfo& firstObj) const
 {
   double msRuntime = 1e10;
@@ -238,9 +239,12 @@ pimPerfEnergyBase::getPerfEnergyForHaloCopyHost(const HaloCopyParams& params) co
   double msCompute = 0.0;
   uint64_t totalOp = 0;
 
+  const bool includeDiagonalHalo = params.stencilPattern != STENCIL_PATTERN_STAR;
+
   const uint64_t numBytesHorizontal = 2 * params.numCoresVertical * (params.numCoresHorizontal - 1) * params.numHalo * ((params.numElementsPerCoreVertical - 2 * params.numHalo));
   const uint64_t numBytesVertical = 2 * params.numCoresHorizontal * (params.numCoresVertical - 1) * params.numHalo * ((params.numElementsPerCoreHorizontal - 2 * params.numHalo));
-  const uint64_t numBytesDiagonal = 4 * (params.numCoresHorizontal - 1) * (params.numCoresVertical - 1) * params.numHalo * params.numHalo;
+  const uint64_t numBytesDiagonal = includeDiagonalHalo ?
+    4 * (params.numCoresHorizontal - 1) * (params.numCoresVertical - 1) * params.numHalo * params.numHalo : 0;
   const uint64_t numElems = numBytesHorizontal + numBytesVertical + numBytesDiagonal;
 
   const uint64_t numBytes = numElems * params.bytesPerElement;

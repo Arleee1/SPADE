@@ -617,7 +617,7 @@ bool
 pimCmdCopyHalo::execute()
 {
   if (m_debugCmds) {
-    std::printf("PIM-Cmd: %s (halo radius: %" PRIu64 ")\n", getName().c_str(), m_numHalo);
+    std::printf("PIM-Cmd: %s (halo radius: %" PRIu64 ", stencil pattern: %d)\n", getName().c_str(), m_numHalo, static_cast<int>(m_stencilPattern));
   }
 
   if (!sanityCheck()) {
@@ -632,6 +632,7 @@ pimCmdCopyHalo::execute()
   const uint64_t totalCores = numCoresVertical * numCoresHorizontal;
   const uint64_t numElementsPerCoreVertical = m_srcGrid.size();
   const uint64_t numElementsPerCoreHorizontal = refObj.getNumElements() / totalCores;
+  const bool includeDiagonalHalo = m_stencilPattern != STENCIL_PATTERN_STAR;
 
   if (pimSim::get()->getDeviceType() != PIM_FUNCTIONAL) {
     for (PimObjId objId : m_srcGrid) {
@@ -662,7 +663,7 @@ pimCmdCopyHalo::execute()
           copyRectangle(coreIndex - numCoresHorizontal, coreIndex, m_numHalo, numElementsPerCoreVertical - 2*m_numHalo, m_numHalo, 0, numElementsPerCoreHorizontal - 2*m_numHalo, m_numHalo);
           copyRectangle(coreIndex, coreIndex - numCoresHorizontal, m_numHalo, m_numHalo, m_numHalo, numElementsPerCoreVertical - m_numHalo, numElementsPerCoreHorizontal - 2*m_numHalo, m_numHalo);
         }
-        if (coreX > 0 && coreY > 0) {
+        if (includeDiagonalHalo && coreX > 0 && coreY > 0) {
           copyRectangle(coreIndex - numCoresHorizontal - 1, coreIndex, numElementsPerCoreHorizontal - 2*m_numHalo, numElementsPerCoreVertical - 2*m_numHalo, 0, 0, m_numHalo, m_numHalo);
           copyRectangle(coreIndex, coreIndex - numCoresHorizontal - 1, m_numHalo, m_numHalo, numElementsPerCoreHorizontal - m_numHalo, numElementsPerCoreVertical - m_numHalo, m_numHalo, m_numHalo);
           copyRectangle(coreIndex - numCoresHorizontal, coreIndex - 1, m_numHalo, numElementsPerCoreVertical - 2*m_numHalo, numElementsPerCoreHorizontal - m_numHalo, 0, m_numHalo, m_numHalo);
@@ -731,6 +732,7 @@ pimCmdCopyHalo::updateStats() const
       numElementsPerCoreVertical,
       numElementsPerCoreHorizontal,
       m_numHalo,
+      m_stencilPattern,
       firstObj
     );
   pimSim::get()->getStatsMgr()->recordCmd(getName(dataType, isVLayout), mPerfEnergy);

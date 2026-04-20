@@ -95,7 +95,8 @@ BoundaryPairCounts countBoundaryPairsByLevel(const uint64_t totalGridWidth,
                                              const uint64_t subarrayGridWidth,
                                              const uint64_t subarrayGridHeight,
                                              const uint64_t bankGridWidth,
-                                             const uint64_t bankGridHeight) {
+                                             const uint64_t bankGridHeight,
+                                             const bool includeDiagonals) {
   if (totalGridWidth == 0 || totalGridHeight == 0) {
     throw std::invalid_argument("total grid dimensions must be non-zero");
   }
@@ -133,11 +134,12 @@ BoundaryPairCounts countBoundaryPairsByLevel(const uint64_t totalGridWidth,
   const uint64_t widthEdgesNonRank = widthEdges - rankBoundaryColumns;
   const uint64_t heightEdgesNonRank = heightEdges - rankBoundaryRows;
 
-  const uint64_t diagonalRank =
+  const uint64_t diagonalRank = !includeDiagonals ? 0 :
       rankBoundaryColumns * heightEdges + rankBoundaryRows * widthEdges - rankBoundaryColumns * rankBoundaryRows;
-  const uint64_t diagonalBank =
+  const uint64_t diagonalBank = !includeDiagonals ? 0 :
       bankBoundaryColumns * heightEdgesNonRank + bankBoundaryRows * widthEdgesNonRank - bankBoundaryColumns * bankBoundaryRows;
-  const uint64_t diagonalSubarray = totalDiagonalPairs - diagonalRank - diagonalBank;
+  const uint64_t diagonalSubarray = !includeDiagonals ? 0 :
+      totalDiagonalPairs - diagonalRank - diagonalBank;
 
   return {
       horizontalSubarray,
@@ -202,7 +204,8 @@ double totalMoveCost(const uint64_t subarrayGridWidth,
       subarrayGridWidth,
       subarrayGridHeight,
       bankGridWidth,
-      bankGridHeight);
+      bankGridHeight,
+      params.includeDiagonals);
 
   const uint64_t toMoveS2S = getStats(
       pairs.horizontalSubarray,

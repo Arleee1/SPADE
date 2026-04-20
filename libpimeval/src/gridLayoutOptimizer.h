@@ -34,6 +34,8 @@ struct TotalMoveCostParams {
   double transferCostBankToBank;
   //! The cost to transfer one element between ranks
   double transferCostRankToRank;
+  //! Whether or not diagonals are copied
+  bool includeDiagonals;
 };
 
 struct GridLayoutConfig {

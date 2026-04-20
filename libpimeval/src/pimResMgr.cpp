@@ -700,7 +700,8 @@ pimResMgr::getCoresForGrid(
       return {};
     }
     return std::vector<PimCoreId>(sortedCoreId.begin(), sortedCoreId.begin() + numCores);
-  } else if (allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT) {
+  } else if (allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT
+             || allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_STENCIL_5_POINT) {
     const uint64_t subarraysPerBank = m_device->getNumSubarrayPerBank();
     const uint64_t banksPerRank = m_device->getNumBankPerRank();
     const uint64_t ranks = m_device->getNumRanks();
@@ -719,6 +720,7 @@ pimResMgr::getCoresForGrid(
     params.transferCostSubarrayToSubarray = m_device->getInterSubarrayMsPerByte();
     params.transferCostBankToBank = m_device->getInterBankMsPerByte();
     params.transferCostRankToRank = m_device->getInterRankMsPerByte();
+    params.includeDiagonals = (allocationStrategy == PimAllocationStrategy::PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT);
     const GridLayoutConfig layout = optimizeGridLayout(params);
 
     const uint64_t numRankHorizontal = layout.rankGridWidth;

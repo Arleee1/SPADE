@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
 """Collect SPADE copy_grid_halo runtimes and emit LaTeX heatmap tables.
 
-For every (config, width, height), this script runs stencil-grid twice:
-  1) -a STENCIL_9_POINT
-  2) -a LEAST_USED_CORES
+For every (config, width, height), this script runs two comparison suites:
+	1) STENCIL_9_POINT with BOX pattern vs LEAST_USED_CORES with BOX pattern
+	2) STENCIL_5_POINT with STAR pattern vs LEAST_USED_CORES with STAR pattern
 
 It extracts Runtime(ms) from the command-stats row:
-  copy_grid_halo.fp32.h
+	copy_grid_halo.fp32.h
 
 If that row is missing, runtime is recorded as -1.
 
 Speedup in each heatmap cell is defined as:
-  speedup = runtime(LEAST_USED_CORES) / runtime(STENCIL_9_POINT)
+	speedup = runtime(LEAST_USED_CORES) / runtime(STENCIL_*)
 
-So speedup > 1 means STENCIL_9_POINT is faster.
+So speedup > 1 means the stencil strategy is faster.
+
+Each comparison suite writes CSV/TEX/text/log outputs to its own labeled folder
+under spade_results/<mode>/.
 
 Radius and iterations are intentionally fixed to launch.json-style values:
-  -r 1
-  -n 5
+	-r 1
+	-n 5
 """
 
 from __future__ import annotations
@@ -49,8 +52,11 @@ DEFAULT_WIDTHS = [10, 100, 1_000, 10_000]
 DEFAULT_HEIGHTS = [10, 100, 1_000, 10_000]
 ANALYSIS_EXTRA_SIZES = [100_000, 1_000_000, 10_000_000]
 
-STRATEGY_STENCIL = "STENCIL_9_POINT"
+STRATEGY_STENCIL_9 = "STENCIL_9_POINT"
+STRATEGY_STENCIL_5 = "STENCIL_5_POINT"
 STRATEGY_LEAST_USED = "LEAST_USED_CORES"
+PATTERN_BOX = "BOX"
+PATTERN_STAR = "STAR"
 FIXED_RADIUS = 1
 FIXED_ITERATIONS = 5
 
@@ -66,8 +72,10 @@ COPY_GRID_HALO_RUNTIME_PATTERN = re.compile(
 class StrategyRun:
 	command_index: int
 	total_commands: int
+	comparison_label: str
 	config_name: str
 	strategy: str
+	pattern: str
 	width: int
 	height: int
 	command: str
@@ -84,17 +92,49 @@ class CommandResult:
 	timed_out: bool
 
 
+@dataclass(frozen=True)
+class ComparisonSpec:
+	folder_label: str
+	stencil_strategy: str
+	stencil_pattern: str
+	least_used_strategy: str
+	least_used_pattern: str
+
+
 @dataclass
 class HeatmapCell:
+	comparison_label: str
 	config_name: str
 	width: int
 	height: int
+	stencil_strategy: str
+	stencil_pattern: str
+	least_used_strategy: str
+	least_used_pattern: str
 	runtime_stencil_ms: float
 	runtime_least_used_ms: float
 	speedup_stencil_vs_least_used: float
 	status: str
 	stencil_log_file: str
 	least_used_log_file: str
+
+
+COMPARISON_SPECS = [
+	ComparisonSpec(
+		folder_label="stencil_9_point_box",
+		stencil_strategy=STRATEGY_STENCIL_9,
+		stencil_pattern=PATTERN_BOX,
+		least_used_strategy=STRATEGY_LEAST_USED,
+		least_used_pattern=PATTERN_BOX,
+	),
+	ComparisonSpec(
+		folder_label="stencil_5_point_star",
+		stencil_strategy=STRATEGY_STENCIL_5,
+		stencil_pattern=PATTERN_STAR,
+		least_used_strategy=STRATEGY_LEAST_USED,
+		least_used_pattern=PATTERN_STAR,
+	),
+]
 
 
 def parse_copy_grid_halo_runtime(output: str) -> float:
@@ -193,6 +233,7 @@ def build_latex_heatmaps(
 	config_names: Sequence[str],
 	widths: Sequence[int],
 	heights: Sequence[int],
+	comparison_spec: ComparisonSpec,
 ) -> str:
 	cell_map: Dict[Tuple[str, int, int], HeatmapCell] = {
 		(cell.config_name, cell.width, cell.height): cell for cell in cells
@@ -212,7 +253,9 @@ def build_latex_heatmaps(
 	lines.append("%   \\usepackage{pgfplots}")
 	lines.append("%   \\pgfplotsset{compat=1.18}")
 	lines.append(
-		"% Speedup definition: runtime(LEAST_USED_CORES) / runtime(STENCIL_9_POINT)"
+		"% Speedup definition: "
+		f"runtime({comparison_spec.least_used_strategy}/{comparison_spec.least_used_pattern}) "
+		f"/ runtime({comparison_spec.stencil_strategy}/{comparison_spec.stencil_pattern})"
 	)
 	lines.append("")
 
@@ -223,7 +266,15 @@ def build_latex_heatmaps(
 		lines.append(
 			r"\caption{Speedup heatmap values for "
 			+ latex_escape(config_name)
-			+ r" (STENCIL\_9\_POINT vs LEAST\_USED\_CORES)}"
+			+ r" ("
+			+ latex_escape(comparison_spec.stencil_strategy)
+			+ r"/"
+			+ latex_escape(comparison_spec.stencil_pattern)
+			+ r" vs "
+			+ latex_escape(comparison_spec.least_used_strategy)
+			+ r"/"
+			+ latex_escape(comparison_spec.least_used_pattern)
+			+ r")}"
 		)
 		lines.append(r"\begin{tabular}{r|" + "c" * len(widths) + r"}")
 		lines.append(r"\toprule")
@@ -287,7 +338,15 @@ def build_latex_heatmaps(
 		lines.append(r"\end{axis}")
 		lines.append(r"\end{tikzpicture}")
 		lines.append(
-			r"\caption{Heatmap of speedup (runtime(LEAST\_USED\_CORES) / runtime(STENCIL\_9\_POINT)) for "
+			r"\caption{Heatmap of speedup (runtime("
+			+ latex_escape(comparison_spec.least_used_strategy)
+			+ r"/"
+			+ latex_escape(comparison_spec.least_used_pattern)
+			+ r") / runtime("
+			+ latex_escape(comparison_spec.stencil_strategy)
+			+ r"/"
+			+ latex_escape(comparison_spec.stencil_pattern)
+			+ r")) for "
 			+ latex_escape(config_name)
 			+ r". Cells with missing copy\_grid\_halo are NaN/ERR.}"
 		)
@@ -306,7 +365,7 @@ def main() -> int:
 	parser = argparse.ArgumentParser(
 		description=(
 			"Run SPADE stencil-grid sweeps and collect copy_grid_halo.fp32.h runtime "
-			"for STENCIL_9_POINT vs LEAST_USED_CORES."
+			"for multiple stencil strategy/pattern comparison suites."
 		)
 	)
 	parser.add_argument(
@@ -355,12 +414,12 @@ def main() -> int:
 	parser.add_argument(
 		"--output-csv",
 		default=str(repo_root / "spade_strategy_speedup_results.csv"),
-		help="Output CSV filename/path (saved under a mode-specific results folder).",
+		help="Output CSV filename/path (saved under mode/suite-specific results folders).",
 	)
 	parser.add_argument(
 		"--output-tex",
 		default=str(repo_root / "spade_strategy_speedup_heatmaps.tex"),
-		help="Output LaTeX filename/path (saved under a mode-specific results folder).",
+		help="Output LaTeX filename/path (saved under mode/suite-specific results folders).",
 	)
 	parser.add_argument(
 		"--output-text",
@@ -373,7 +432,7 @@ def main() -> int:
 	parser.add_argument(
 		"--log-dir",
 		default=str(repo_root / "spade_collect_logs"),
-		help="Log directory name/path (created under a mode-specific results folder).",
+		help="Log directory name/path (created under mode/suite-specific results folders).",
 	)
 	parser.add_argument(
 		"--print-output",
@@ -401,10 +460,6 @@ def main() -> int:
 
 	program = Path(args.program).resolve()
 	cwd = Path(args.cwd).resolve()
-	output_csv = (mode_results_root / Path(args.output_csv).name).resolve()
-	output_tex = (mode_results_root / Path(args.output_tex).name).resolve()
-	output_text = (mode_results_root / Path(args.output_text).name).resolve()
-	log_dir = (mode_results_root / Path(args.log_dir).name).resolve()
 	config_dir = Path(args.config_dir).resolve()
 
 	available_configs = discover_taco_configs(config_dir)
@@ -441,225 +496,305 @@ def main() -> int:
 	env["PIMEVAL_LOAD_BALANCE"] = "0"
 	env["PIMEVAL_ANALYSIS_MODE"] = "1" if args.analysis_mode else "0"
 
-	ensure_parent(output_csv)
-	ensure_parent(output_tex)
-	log_dir.mkdir(parents=True, exist_ok=True)
+	suite_results: List[Tuple[ComparisonSpec, Path, Path, Dict[str, Path], List[HeatmapCell]]] = []
 
-	per_config_output_files: Dict[str, Path] = {
-		config_path.name: per_config_output_path(output_text, config_path.name)
-		for config_path in config_paths
-	}
-	for per_config_output in per_config_output_files.values():
-		ensure_parent(per_config_output)
+	for comparison_spec in COMPARISON_SPECS:
+		comparison_results_root = (mode_results_root / comparison_spec.folder_label).resolve()
+		output_csv = (comparison_results_root / Path(args.output_csv).name).resolve()
+		output_tex = (comparison_results_root / Path(args.output_tex).name).resolve()
+		output_text = (comparison_results_root / Path(args.output_text).name).resolve()
+		log_dir = (comparison_results_root / Path(args.log_dir).name).resolve()
 
-	runs: List[StrategyRun] = []
-	command_index = 0
-	strategies = [STRATEGY_STENCIL, STRATEGY_LEAST_USED]
-	total_commands = len(config_paths) * len(heights) * len(widths) * len(strategies)
+		ensure_parent(output_csv)
+		ensure_parent(output_tex)
+		log_dir.mkdir(parents=True, exist_ok=True)
 
-	for config_path in config_paths:
-		config_output_text = per_config_output_files[config_path.name]
-		with config_output_text.open("w", encoding="utf-8") as config_output_file:
+		per_config_output_files: Dict[str, Path] = {
+			config_path.name: per_config_output_path(output_text, config_path.name)
+			for config_path in config_paths
+		}
+		for per_config_output in per_config_output_files.values():
+			ensure_parent(per_config_output)
+
+		runs: List[StrategyRun] = []
+		command_index = 0
+		strategy_pattern_pairs = [
+			(comparison_spec.stencil_strategy, comparison_spec.stencil_pattern),
+			(comparison_spec.least_used_strategy, comparison_spec.least_used_pattern),
+		]
+		total_commands = len(config_paths) * len(heights) * len(widths) * len(strategy_pattern_pairs)
+
+		print(
+			f"=== Suite {comparison_spec.folder_label}: "
+			f"{comparison_spec.stencil_strategy}/{comparison_spec.stencil_pattern} vs "
+			f"{comparison_spec.least_used_strategy}/{comparison_spec.least_used_pattern} ===",
+			flush=True,
+		)
+
+		for config_path in config_paths:
+			config_output_text = per_config_output_files[config_path.name]
+			with config_output_text.open("w", encoding="utf-8") as config_output_file:
+				config_output_file.write(
+					f"comparison_label={comparison_spec.folder_label}\n"
+					f"stencil_strategy={comparison_spec.stencil_strategy}\n"
+					f"stencil_pattern={comparison_spec.stencil_pattern}\n"
+					f"least_used_strategy={comparison_spec.least_used_strategy}\n"
+					f"least_used_pattern={comparison_spec.least_used_pattern}\n\n"
+				)
+				for height in heights:
+					for width in widths:
+						for strategy, pattern in strategy_pattern_pairs:
+							command_index += 1
+							command = [
+								str(program),
+								"-a",
+								strategy,
+								"-p",
+								pattern,
+								"-x",
+								str(width),
+								"-y",
+								str(height),
+								"-r",
+								str(FIXED_RADIUS),
+								"-n",
+								str(FIXED_ITERATIONS),
+								"-c",
+								str(config_path),
+							]
+							if not args.analysis_mode:
+								command.extend(["-v", "t"])
+
+							command_text = " ".join(shlex.quote(part) for part in command)
+							print(
+								f"[{command_index}/{total_commands}] Running {strategy}/{pattern} "
+								f"suite={comparison_spec.folder_label} config={config_path.name} "
+								f"x={width} y={height}",
+								flush=True,
+							)
+							config_output_file.write(
+								f"RUN {command_index}/{total_commands}\n"
+								f"suite={comparison_spec.folder_label}\n"
+								f"config={config_path.name}\n"
+								f"strategy={strategy}\n"
+								f"pattern={pattern}\n"
+								f"width={width}\n"
+								f"height={height}\n"
+								"command=\n"
+								f"{command_text}\n"
+							)
+							config_output_file.flush()
+
+							start_time = time.monotonic()
+							result = run_command(
+								command=command,
+								cwd=cwd,
+								env=env,
+								timeout_seconds=args.timeout_seconds,
+							)
+							elapsed_s = time.monotonic() - start_time
+
+							output = result.output
+							runtime_ms = parse_copy_grid_halo_runtime(output)
+							if result.timed_out:
+								status = "timed_out"
+							elif runtime_ms >= 0:
+								status = "ok"
+							else:
+								status = "missing_copy_grid_halo"
+
+							log_file = log_dir / (
+								f"command_{command_index:04d}_{config_path.stem}_{strategy}_{pattern}_x{width}_y{height}.log"
+							)
+							log_file.write_text(output, encoding="utf-8")
+
+							if args.print_output:
+								print(f"===== Command {command_index} Output =====", flush=True)
+								print(output, flush=True)
+
+							config_output_file.write(
+								f"return_code={result.return_code}\n"
+								f"timed_out={result.timed_out}\n"
+								f"elapsed_seconds={elapsed_s:.2f}\n"
+								"output=\n"
+								f"{output.rstrip()}\n\n"
+							)
+							config_output_file.flush()
+
+							print(
+								f"[{command_index}/{total_commands}] Done status={status} "
+								f"copy_grid_halo_runtime_ms={runtime_ms} elapsed={elapsed_s:.2f}s",
+								flush=True,
+							)
+
+							runs.append(
+								StrategyRun(
+									command_index=command_index,
+									total_commands=total_commands,
+									comparison_label=comparison_spec.folder_label,
+									config_name=config_path.name,
+									strategy=strategy,
+									pattern=pattern,
+									width=width,
+									height=height,
+									command=command_text,
+									return_code=result.return_code,
+									runtime_ms=runtime_ms,
+									status=status,
+									log_file=str(log_file),
+								)
+							)
+
+		run_map: Dict[Tuple[str, int, int, str, str], StrategyRun] = {
+			(run.config_name, run.width, run.height, run.strategy, run.pattern): run
+			for run in runs
+		}
+
+		cells: List[HeatmapCell] = []
+		for config_name in config_names:
 			for height in heights:
 				for width in widths:
-					for strategy in strategies:
-						command_index += 1
-						command = [
-							str(program),
-							"-a",
-							strategy,
-							"-x",
-							str(width),
-							"-y",
-							str(height),
-							"-r",
-							str(FIXED_RADIUS),
-							"-n",
-							str(FIXED_ITERATIONS),
-							"-c",
-							str(config_path),
-						]
-						if not args.analysis_mode:
-							command.extend(["-v", "t"])
-
-						command_text = " ".join(shlex.quote(part) for part in command)
-						print(
-							f"[{command_index}/{total_commands}] Running {strategy} "
-							f"config={config_path.name} x={width} y={height}",
-							flush=True,
+					stencil_run = run_map.get(
+						(
+							config_name,
+							width,
+							height,
+							comparison_spec.stencil_strategy,
+							comparison_spec.stencil_pattern,
 						)
-						config_output_file.write(
-							f"RUN {command_index}/{total_commands}\n"
-							f"config={config_path.name}\n"
-							f"strategy={strategy}\n"
-							f"width={width}\n"
-							f"height={height}\n"
-							"command=\n"
-							f"{command_text}\n"
-						)
-						config_output_file.flush()
-
-						start_time = time.monotonic()
-						result = run_command(
-							command=command,
-							cwd=cwd,
-							env=env,
-							timeout_seconds=args.timeout_seconds,
-						)
-						elapsed_s = time.monotonic() - start_time
-
-						output = result.output
-						runtime_ms = parse_copy_grid_halo_runtime(output)
-						if result.timed_out:
-							status = "timed_out"
-						elif runtime_ms >= 0:
-							status = "ok"
-						else:
-							status = "missing_copy_grid_halo"
-
-						log_file = log_dir / (
-							f"command_{command_index:04d}_{config_path.stem}_{strategy}_x{width}_y{height}.log"
-						)
-						log_file.write_text(output, encoding="utf-8")
-
-						if args.print_output:
-							print(f"===== Command {command_index} Output =====", flush=True)
-							print(output, flush=True)
-
-						config_output_file.write(
-							f"return_code={result.return_code}\n"
-							f"timed_out={result.timed_out}\n"
-							f"elapsed_seconds={elapsed_s:.2f}\n"
-							"output=\n"
-							f"{output.rstrip()}\n\n"
-						)
-						config_output_file.flush()
-
-						print(
-							f"[{command_index}/{total_commands}] Done status={status} "
-							f"copy_grid_halo_runtime_ms={runtime_ms} elapsed={elapsed_s:.2f}s",
-							flush=True,
-						)
-
-						runs.append(
-							StrategyRun(
-								command_index=command_index,
-								total_commands=total_commands,
-								config_name=config_path.name,
-								strategy=strategy,
-								width=width,
-								height=height,
-								command=command_text,
-								return_code=result.return_code,
-								runtime_ms=runtime_ms,
-								status=status,
-								log_file=str(log_file),
-							)
-						)
-
-	run_map: Dict[Tuple[str, int, int, str], StrategyRun] = {
-		(run.config_name, run.width, run.height, run.strategy): run for run in runs
-	}
-
-	cells: List[HeatmapCell] = []
-	for config_name in config_names:
-		for height in heights:
-			for width in widths:
-				stencil_run = run_map.get((config_name, width, height, STRATEGY_STENCIL))
-				least_used_run = run_map.get((config_name, width, height, STRATEGY_LEAST_USED))
-
-				runtime_stencil = stencil_run.runtime_ms if stencil_run is not None else -1.0
-				runtime_least_used = least_used_run.runtime_ms if least_used_run is not None else -1.0
-
-				if runtime_stencil > 0 and runtime_least_used > 0:
-					speedup = runtime_least_used / runtime_stencil
-					status = "ok"
-				elif runtime_stencil <= 0 and runtime_least_used <= 0:
-					speedup = -1.0
-					status = "missing_both"
-				elif runtime_stencil <= 0:
-					speedup = -1.0
-					status = "missing_stencil"
-				else:
-					speedup = -1.0
-					status = "missing_least_used"
-
-				cells.append(
-					HeatmapCell(
-						config_name=config_name,
-						width=width,
-						height=height,
-						runtime_stencil_ms=runtime_stencil,
-						runtime_least_used_ms=runtime_least_used,
-						speedup_stencil_vs_least_used=speedup,
-						status=status,
-						stencil_log_file=(stencil_run.log_file if stencil_run is not None else ""),
-						least_used_log_file=(least_used_run.log_file if least_used_run is not None else ""),
 					)
+					least_used_run = run_map.get(
+						(
+							config_name,
+							width,
+							height,
+							comparison_spec.least_used_strategy,
+							comparison_spec.least_used_pattern,
+						)
+					)
+
+					runtime_stencil = stencil_run.runtime_ms if stencil_run is not None else -1.0
+					runtime_least_used = least_used_run.runtime_ms if least_used_run is not None else -1.0
+
+					if runtime_stencil > 0 and runtime_least_used > 0:
+						speedup = runtime_least_used / runtime_stencil
+						status = "ok"
+					elif runtime_stencil <= 0 and runtime_least_used <= 0:
+						speedup = -1.0
+						status = "missing_both"
+					elif runtime_stencil <= 0:
+						speedup = -1.0
+						status = "missing_stencil"
+					else:
+						speedup = -1.0
+						status = "missing_least_used"
+
+					cells.append(
+						HeatmapCell(
+							comparison_label=comparison_spec.folder_label,
+							config_name=config_name,
+							width=width,
+							height=height,
+							stencil_strategy=comparison_spec.stencil_strategy,
+							stencil_pattern=comparison_spec.stencil_pattern,
+							least_used_strategy=comparison_spec.least_used_strategy,
+							least_used_pattern=comparison_spec.least_used_pattern,
+							runtime_stencil_ms=runtime_stencil,
+							runtime_least_used_ms=runtime_least_used,
+							speedup_stencil_vs_least_used=speedup,
+							status=status,
+							stencil_log_file=(stencil_run.log_file if stencil_run is not None else ""),
+							least_used_log_file=(least_used_run.log_file if least_used_run is not None else ""),
+						)
+					)
+
+		with output_csv.open("w", newline="", encoding="utf-8") as csv_file:
+			writer = csv.DictWriter(
+				csv_file,
+				fieldnames=[
+					"comparison_label",
+					"config_name",
+					"width",
+					"height",
+					"stencil_strategy",
+					"stencil_pattern",
+					"least_used_strategy",
+					"least_used_pattern",
+					"runtime_stencil_ms",
+					"runtime_least_used_cores_ms",
+					"speedup_stencil_vs_least_used_cores",
+					"status",
+					"stencil_log_file",
+					"least_used_log_file",
+				],
+			)
+			writer.writeheader()
+			for cell in cells:
+				writer.writerow(
+					{
+						"comparison_label": cell.comparison_label,
+						"config_name": cell.config_name,
+						"width": cell.width,
+						"height": cell.height,
+						"stencil_strategy": cell.stencil_strategy,
+						"stencil_pattern": cell.stencil_pattern,
+						"least_used_strategy": cell.least_used_strategy,
+						"least_used_pattern": cell.least_used_pattern,
+						"runtime_stencil_ms": cell.runtime_stencil_ms,
+						"runtime_least_used_cores_ms": cell.runtime_least_used_ms,
+						"speedup_stencil_vs_least_used_cores": cell.speedup_stencil_vs_least_used,
+						"status": cell.status,
+						"stencil_log_file": cell.stencil_log_file,
+						"least_used_log_file": cell.least_used_log_file,
+					}
 				)
 
-	with output_csv.open("w", newline="", encoding="utf-8") as csv_file:
-		writer = csv.DictWriter(
-			csv_file,
-			fieldnames=[
-				"config_name",
-				"width",
-				"height",
-				"runtime_stencil_9_point_ms",
-				"runtime_least_used_cores_ms",
-				"speedup_stencil_9_point_vs_least_used_cores",
-				"status",
-				"stencil_log_file",
-				"least_used_log_file",
-			],
+		latex = build_latex_heatmaps(
+			cells=cells,
+			config_names=config_names,
+			widths=widths,
+			heights=heights,
+			comparison_spec=comparison_spec,
 		)
-		writer.writeheader()
-		for cell in cells:
-			writer.writerow(
-				{
-					"config_name": cell.config_name,
-					"width": cell.width,
-					"height": cell.height,
-					"runtime_stencil_9_point_ms": cell.runtime_stencil_ms,
-					"runtime_least_used_cores_ms": cell.runtime_least_used_ms,
-					"speedup_stencil_9_point_vs_least_used_cores": cell.speedup_stencil_vs_least_used,
-					"status": cell.status,
-					"stencil_log_file": cell.stencil_log_file,
-					"least_used_log_file": cell.least_used_log_file,
-				}
+		output_tex.write_text(latex, encoding="utf-8")
+
+		print(f"Wrote {len(cells)} heatmap cells to: {output_csv}")
+		print(f"Wrote LaTeX heatmap tables/snippets to: {output_tex}")
+		print(f"Suite results folder: {comparison_results_root}")
+		print("Wrote per-config run output text files:")
+		for config_name in config_names:
+			print(f"  {config_name}: {per_config_output_files[config_name]}")
+		print("Summary:")
+		for config_name in config_names:
+			ok_cells = sum(
+				1
+				for cell in cells
+				if cell.config_name == config_name and cell.speedup_stencil_vs_least_used > 0
 			)
+			total_cells = sum(1 for cell in cells if cell.config_name == config_name)
+			print(f"  {config_name}: {ok_cells}/{total_cells} cells with valid speedup")
 
-	latex = build_latex_heatmaps(
-		cells=cells,
-		config_names=config_names,
-		widths=widths,
-		heights=heights,
-	)
-	output_tex.write_text(latex, encoding="utf-8")
+		suite_results.append(
+			(comparison_spec, output_csv, output_tex, per_config_output_files, cells)
+		)
 
-	print(f"Wrote {len(cells)} heatmap cells to: {output_csv}")
-	print(f"Wrote LaTeX heatmap tables/snippets to: {output_tex}")
-	print(f"Results folder: {mode_results_root}")
-	print("Wrote per-config run output text files:")
-	for config_name in config_names:
-		print(f"  {config_name}: {per_config_output_files[config_name]}")
+	print(f"Results root folder: {mode_results_root}")
 	print(
 		"Fixed run parameters: "
-		f"-a [{STRATEGY_STENCIL}, {STRATEGY_LEAST_USED}], "
 		f"-r {FIXED_RADIUS}, -n {FIXED_ITERATIONS}, "
 		f"analysis_mode={args.analysis_mode}, "
 		f"PIMEVAL_ANALYSIS_MODE={env['PIMEVAL_ANALYSIS_MODE']}, "
 		f"-v t {'disabled' if args.analysis_mode else 'enabled'}"
 	)
-	print("Summary:")
-	for config_name in config_names:
-		ok_cells = sum(
-			1
-			for cell in cells
-			if cell.config_name == config_name and cell.speedup_stencil_vs_least_used > 0
+	print("Completed comparison suites:")
+	for comparison_spec, output_csv, output_tex, _, _ in suite_results:
+		print(
+			f"  {comparison_spec.folder_label}: "
+			f"{comparison_spec.stencil_strategy}/{comparison_spec.stencil_pattern} vs "
+			f"{comparison_spec.least_used_strategy}/{comparison_spec.least_used_pattern}"
 		)
-		total_cells = sum(1 for cell in cells if cell.config_name == config_name)
-		print(f"  {config_name}: {ok_cells}/{total_cells} cells with valid speedup")
+		print(f"    csv={output_csv}")
+		print(f"    tex={output_tex}")
 
 	return 0
 

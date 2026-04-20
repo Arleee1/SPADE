@@ -24,6 +24,12 @@
 #include "libpimeval.h"
 
 
+//! @brief  Stencil pattern types
+enum StencilPattern {
+  STENCIL_PATTERN_BOX = 0,
+  STENCIL_PATTERN_STAR,
+};
+
 // Params ---------------------------------------------------------------------
 typedef struct Params
 {
@@ -35,6 +41,8 @@ typedef struct Params
   const char *inputFile;
   const char *allocStrategyName;
   PimAllocationStrategy allocStrategy;
+  const char *stencilPatternName;
+  StencilPattern stencilPattern;
   bool shouldVerify;
 } Params;
 
@@ -49,7 +57,8 @@ void usage()
           "\n    -r    stencil radius (default=2)"
           "\n    -c    dramsim config file"
           "\n    -i    input file containing a 2d array (default=random)"
-          "\n    -a    allocation strategy (options: STENCIL_9_POINT, LEAST_USED_CORES) (default=STENCIL_9_POINT)"
+          "\n    -a    allocation strategy (options: STENCIL_9_POINT, STENCIL_5_POINT, LEAST_USED_CORES) (default=STENCIL_9_POINT)"
+          "\n    -p    stencil pattern (options: BOX, STAR) (default=BOX)"
           "\n    -v    t = verifies PIM output with host output. (default=false)"
           "\n");
 }
@@ -65,10 +74,12 @@ struct Params getInputParams(int argc, char **argv)
   p.inputFile = nullptr;
   p.allocStrategyName = "STENCIL_9_POINT";
   p.allocStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT;
+  p.stencilPatternName = "BOX";
+  p.stencilPattern = STENCIL_PATTERN_BOX;
   p.shouldVerify = false;
 
   int opt;
-  while ((opt = getopt(argc, argv, "h:n:x:y:r:c:i:a:v:")) >= 0)
+  while ((opt = getopt(argc, argv, "h:n:x:y:r:c:i:a:p:v:")) >= 0)
   {
     switch (opt)
     {
@@ -97,6 +108,8 @@ struct Params getInputParams(int argc, char **argv)
     case 'a':
       if (strcmp(optarg, "STENCIL_9_POINT") == 0) {
         p.allocStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_9_POINT;
+      } else if (strcmp(optarg, "STENCIL_5_POINT") == 0) {
+        p.allocStrategy = PIM_ALLOCATION_STRATEGY_STENCIL_5_POINT;
       } else if (strcmp(optarg, "LEAST_USED_CORES") == 0) {
         p.allocStrategy = PIM_ALLOCATION_STRATEGY_LEAST_USED_CORES;
       } else {
@@ -105,6 +118,18 @@ struct Params getInputParams(int argc, char **argv)
         exit(0);
       }
       p.allocStrategyName = optarg;
+      break;
+    case 'p':
+      if (strcmp(optarg, "BOX") == 0) {
+        p.stencilPattern = STENCIL_PATTERN_BOX;
+      } else if (strcmp(optarg, "STAR") == 0) {
+        p.stencilPattern = STENCIL_PATTERN_STAR;
+      } else {
+        fprintf(stderr, "\nUnrecognized stencil pattern!\n");
+        usage();
+        exit(0);
+      }
+      p.stencilPatternName = optarg;
       break;
     case 'v':
       p.shouldVerify = (*optarg == 't');
@@ -116,6 +141,96 @@ struct Params getInputParams(int argc, char **argv)
     }
   }
   return p;
+}
+
+uint64_t calculateStencilAreaInt(const StencilPattern stencilPattern, const uint64_t radius) {
+  uint64_t stencilAreaInt;
+  if(stencilPattern == STENCIL_PATTERN_BOX) {
+    stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
+  } else if(stencilPattern == STENCIL_PATTERN_STAR) {
+    stencilAreaInt = 4 * radius + 1;
+  } else {
+    std::cerr << "Unrecognized stencil pattern!" << std::endl;
+    std::exit(1);
+  }
+  return stencilAreaInt;
+}
+
+//! @brief  Computes one iteration of one chunk of the stencil for the star pattern
+//! @param[in]  workingPimMemory  PIM rows in the stencil chunk
+//! @param[in]  rowsInSumCircularQueue  Queue used for keeping track of running sum of rows vertically
+//! @param[in,out]  tmpPim  Temporary PIM object used for calculations
+//! @param[in,out]  runningSum Temporary PIM object used for keeping track of the current running (vertical) sum
+//! @param[in]  stencilAreaToMultiplyPim This algorithm computes stencil average, thus each element in the result must be divided by the stencil area. This is done by multiplying by the inverse.
+//! @param[in]  radius  The stencil radius
+void updateStencilTileStar(std::span<PimObjId> workingPimMemory, std::span<PimObjId> rowsInSumCircularQueue, PimObjId tmpPim, PimObjId runningSum, const uint64_t stencilAreaToMultiplyPim, const uint64_t radius) {
+  PimStatus status;
+
+  uint64_t circularQueueBot = 0;
+  uint64_t circularQueueTop = 0;
+
+  status = pimCopyObjectToObject(workingPimMemory[0], rowsInSumCircularQueue[circularQueueTop]);
+  assert (status == PIM_OK);
+  ++circularQueueTop;
+  status = pimCopyObjectToObject(workingPimMemory[1], rowsInSumCircularQueue[circularQueueTop]);
+  assert (status == PIM_OK);
+  ++circularQueueTop;
+  status = pimAdd(rowsInSumCircularQueue[0], rowsInSumCircularQueue[1], runningSum);
+  assert (status == PIM_OK);
+
+  for(uint64_t i=2; i<2*radius; ++i) {
+    status = pimCopyObjectToObject(workingPimMemory[i], rowsInSumCircularQueue[circularQueueTop]);
+    assert (status == PIM_OK);
+    status = pimAdd(runningSum, rowsInSumCircularQueue[circularQueueTop], runningSum);
+    assert (status == PIM_OK);
+    ++circularQueueTop;
+  }
+
+  for(uint64_t row=radius; row<workingPimMemory.size()-radius; ++row) {
+    const uint64_t nextRowToAdd = row + radius;
+    status = pimCopyObjectToObject(workingPimMemory[nextRowToAdd], rowsInSumCircularQueue[circularQueueTop]);
+    assert (status == PIM_OK);
+
+    status = pimAdd(runningSum, rowsInSumCircularQueue[circularQueueTop], runningSum);
+    assert (status == PIM_OK);
+
+    circularQueueTop = (1+circularQueueTop) % rowsInSumCircularQueue.size();
+
+    status = pimShiftElementsLeft(workingPimMemory[row]);
+    assert (status == PIM_OK);
+
+    status = pimAdd(runningSum, workingPimMemory[row], tmpPim);
+    assert (status == PIM_OK);
+
+    for(uint64_t shiftIter=1; shiftIter<radius; ++shiftIter) {
+      status = pimShiftElementsLeft(workingPimMemory[row]);
+      assert (status == PIM_OK);
+
+      status = pimAdd(tmpPim, workingPimMemory[row], tmpPim);
+      assert (status == PIM_OK);
+    }
+
+    const uint64_t duplicateRowQueueIdx = (circularQueueBot + radius) % rowsInSumCircularQueue.size();
+    status = pimCopyObjectToObject(rowsInSumCircularQueue[duplicateRowQueueIdx], workingPimMemory[row]);
+    assert (status == PIM_OK);
+
+    for(uint64_t shiftIter=0; shiftIter<radius; ++shiftIter) {
+      status = pimShiftElementsRight(workingPimMemory[row]);
+      assert (status == PIM_OK);
+
+      status = pimAdd(tmpPim, workingPimMemory[row], tmpPim);
+      assert (status == PIM_OK);
+    }
+
+    status = pimMulScalar(tmpPim, workingPimMemory[row], stencilAreaToMultiplyPim);
+    assert (status == PIM_OK);
+
+    if(row+1<workingPimMemory.size()-radius) {
+      status = pimSub(runningSum, rowsInSumCircularQueue[circularQueueBot], runningSum);
+      assert (status == PIM_OK);
+      circularQueueBot = (1+circularQueueBot) % rowsInSumCircularQueue.size();
+    }
+  }
 }
 
 //! @brief  Computes one iteration of one chunk of the stencil
@@ -196,7 +311,8 @@ void updateStencilTile(std::span<PimObjId> workingPimMemory, std::span<PimObjId>
 }
 
 void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uint64_t gridWidth, const uint64_t iterations, const uint64_t radius,
-              const uint64_t maxAvailableCores, const uint64_t coreHeight, const uint64_t coreWidth, const PimAllocationStrategy allocStrategy) {
+              const uint64_t maxAvailableCores, const uint64_t coreHeight, const uint64_t coreWidth, const PimAllocationStrategy allocStrategy,
+              const StencilPattern stencilPattern) {
   assert(srcHost.size() == dstHost.size());
 
   const uint64_t gridHeight = srcHost.size() / gridWidth;
@@ -216,7 +332,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
   assert(coveredWidth == gridWidth);
   assert(coveredHeight == gridHeight);
 
-  const uint64_t stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
+  const uint64_t stencilAreaInt = calculateStencilAreaInt(stencilPattern, radius);
   const float stencilAreaFloat = 1.0f / static_cast<float>(stencilAreaInt);
   uint32_t tmp;
   std::memcpy(&tmp, &stencilAreaFloat, sizeof(float));
@@ -228,7 +344,7 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
             << " (last: " << partitioning.tileHeightLast << "x" << partitioning.tileWidthLast << ")" << std::endl;
 
   PimObjGrid workingPimMemory = pimAllocGrid(PIM_ALLOC_AUTO, PIM_FP32, partitioning.numCoresVertical, partitioning.numCoresHorizontal,
-                                  partitioning.tileHeight + 2*radius, colsToAllocate, allocStrategy, radius);
+                                  partitioning.tileHeight + 2*radius, colsToAllocate, allocStrategy, radius);//todofinal: add 5 point
   assert(partitioning.tileHeight + 2*radius == workingPimMemory.size());
 
   PimObjGrid rowsInSumCircularQueue = pimAllocGridAssociated(workingPimMemory[0], PIM_FP32, 2*radius+1);
@@ -246,12 +362,20 @@ void stencil(const std::span<float> srcHost, std::span<float> dstHost, const uin
                                        partitioning.tileHeightLast + radius);
   assert(status == PIM_OK);
 
-  status = pimCopyGridHalo(workingPimMemory, radius);
+  status = pimCopyGridHalo(workingPimMemory, radius); //todofinal: add 5 point
   assert(status == PIM_OK);
 
 
   for(size_t iter = 0; iter < iterations; ++iter) {
-    updateStencilTile(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
+
+    if(stencilPattern == STENCIL_PATTERN_BOX) {
+      updateStencilTile(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
+    } else if(stencilPattern == STENCIL_PATTERN_STAR) {
+      updateStencilTileStar(workingPimMemory, rowsInSumCircularQueue, tmpPim, runningSum, stencilAreaToMultiplyPim, radius);
+    } else {
+      std::cerr << "Unrecognized stencil pattern!" << std::endl;
+      std::exit(1);
+    }
 
     if(iter < iterations - 1) { // Only need to copy halo if not the last iteration
       status = pimCopyGridHalo(workingPimMemory, radius);
@@ -291,6 +415,7 @@ int main(int argc, char* argv[])
   std::cout << "Running PIM stencil for grid: " << params.gridHeight << "x" << params.gridWidth << std::endl;
   std::cout << "Stencil Radius: " << params.radius << ", Number of Iterations: " << params.iterations << std::endl;
   std::cout << "Allocation Strategy: " << params.allocStrategyName << std::endl;
+  std::cout << "Stencil Pattern Type: " << params.stencilPatternName << std::endl;
 
   std::vector<float> x_(params.gridHeight * params.gridWidth);
   std::vector<float> y_(x_.size());
@@ -357,28 +482,47 @@ int main(int argc, char* argv[])
   std::span<float> x(x_);
   std::span<float> y(y_);
 
-  stencil(x, y, params.gridWidth, params.iterations, params.radius, deviceProp.numPIMCores, coreHeight, coreWidth, params.allocStrategy);
+  stencil(x, y, params.gridWidth, params.iterations, params.radius, deviceProp.numPIMCores, coreHeight, coreWidth, params.allocStrategy, params.stencilPattern);
 
   if (params.shouldVerify)
   {
     std::vector<float> cpuY_(y.size());
     std::span<float> cpuY(cpuY_);
 
-    const uint64_t stencilAreaInt = (2 * params.radius + 1) * (2 * params.radius + 1);
+    const uint64_t stencilAreaInt = calculateStencilAreaInt(params.stencilPattern, params.radius);
     const float stencilAreaInverseFloat = 1.0f / static_cast<float>(stencilAreaInt);
 
-    const auto stencilCpuKernel = [stencilAreaInverseFloat](const std::span<float> &stencilSrc, const uint64_t stencilWidth,
-                                       const uint64_t gridX, const uint64_t gridY, const uint64_t stencilRadius) -> float {
-               float resCPU = 0.0f;
-               for(uint64_t stencilY=gridY-stencilRadius; stencilY<=gridY+stencilRadius; ++stencilY) {
-                 for(uint64_t stencilX=gridX-stencilRadius; stencilX<=gridX+stencilRadius; ++stencilX) {
-                   resCPU += stencilSrc[stencilY * stencilWidth + stencilX];
-                 }
-               }
-               return resCPU * stencilAreaInverseFloat;
-             };
+    const auto stencilCpuKernelBox = [stencilAreaInverseFloat](const std::span<float> &stencilSrc, const uint64_t stencilWidth,
+                                          const uint64_t gridX, const uint64_t gridY, const uint64_t stencilRadius) -> float {
+                float resCPU = 0.0f;
+                for(uint64_t stencilY=gridY-stencilRadius; stencilY<=gridY+stencilRadius; ++stencilY) {
+                  for(uint64_t stencilX=gridX-stencilRadius; stencilX<=gridX+stencilRadius; ++stencilX) {
+                    resCPU += stencilSrc[stencilY * stencilWidth + stencilX];
+                  }
+                }
+                return resCPU * stencilAreaInverseFloat;
+              };
 
-    stencilCpu(x, cpuY, params.iterations, params.radius, params.gridWidth, params.gridHeight, stencilCpuKernel);
+    const auto stencilCpuKernelStar = [stencilAreaInverseFloat](const std::span<float> &stencilSrc, const uint64_t stencilWidth,
+                                           const uint64_t gridX, const uint64_t gridY, const uint64_t stencilRadius) -> float {
+                 float resCPU = stencilSrc[gridY * stencilWidth + gridX];
+                 for(uint64_t offset=1; offset<=stencilRadius; ++offset) {
+                   resCPU += stencilSrc[(gridY - offset) * stencilWidth + gridX];
+                   resCPU += stencilSrc[(gridY + offset) * stencilWidth + gridX];
+                   resCPU += stencilSrc[gridY * stencilWidth + (gridX - offset)];
+                   resCPU += stencilSrc[gridY * stencilWidth + (gridX + offset)];
+                 }
+                 return resCPU * stencilAreaInverseFloat;
+               };
+
+    if(params.stencilPattern == STENCIL_PATTERN_BOX) {
+      stencilCpu(x, cpuY, params.iterations, params.radius, params.gridWidth, params.gridHeight, stencilCpuKernelBox);
+    } else if(params.stencilPattern == STENCIL_PATTERN_STAR) {
+      stencilCpu(x, cpuY, params.iterations, params.radius, params.gridWidth, params.gridHeight, stencilCpuKernelStar);
+    } else {
+      std::cerr << "Unrecognized stencil pattern!" << std::endl;
+      std::exit(1);
+    }
     bool ok = true;
 
     // Only compute when stencil is fully in range

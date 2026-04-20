@@ -16,7 +16,7 @@ Speedup in each heatmap cell is defined as:
 So speedup > 1 means the stencil strategy is faster.
 
 Each comparison suite writes CSV/TEX/text/log outputs to its own labeled folder
-under spade_results/<mode>/.
+under spade_results/<mode>/<latency-label>/.
 
 Radius and iterations are intentionally fixed to launch.json-style values:
 	-r 1
@@ -59,6 +59,12 @@ PATTERN_BOX = "BOX"
 PATTERN_STAR = "STAR"
 FIXED_RADIUS = 1
 FIXED_ITERATIONS = 5
+
+LATENCY_ENV_VARS: Sequence[Tuple[str, str]] = (
+	("PIMEVAL_INTER_BANK_LATENCY_NS", "interbank"),
+	("PIMEVAL_INTER_RANK_LATENCY_NS", "interrank"),
+	("PIMEVAL_LISA_COPY_COEFF", "lisa"),
+)
 
 
 COPY_GRID_HALO_RUNTIME_PATTERN = re.compile(
@@ -212,6 +218,29 @@ def format_speedup_cell(speedup: float) -> str:
 
 def discover_taco_configs(config_dir: Path) -> List[str]:
 	return sorted(path.name for path in config_dir.glob("*.cfg"))
+
+
+def sanitize_folder_component(value: str) -> str:
+	"""Keep path components filesystem-safe while preserving numeric readability."""
+	sanitized = re.sub(r"[^0-9A-Za-z._-]+", "_", value.strip())
+	return sanitized if any(ch.isalnum() for ch in sanitized) else "value"
+
+
+def derive_latency_folder_label(env: Dict[str, str]) -> str:
+	"""Build output subfolder label from latency env vars, or 'default' if unset."""
+	any_explicit_override = False
+	parts: List[str] = []
+	for env_var, label_prefix in LATENCY_ENV_VARS:
+		raw_value = env.get(env_var, "")
+		if raw_value.strip() == "":
+			parts.append(f"{label_prefix}_default")
+			continue
+		any_explicit_override = True
+		parts.append(f"{label_prefix}_{sanitize_folder_component(raw_value)}")
+
+	if not any_explicit_override:
+		return "default"
+	return "__".join(parts)
 
 
 def resolve_config_paths(config_dir: Path, config_entries: Sequence[str]) -> List[Path]:
@@ -414,12 +443,18 @@ def main() -> int:
 	parser.add_argument(
 		"--output-csv",
 		default=str(repo_root / "spade_strategy_speedup_results.csv"),
-		help="Output CSV filename/path (saved under mode/suite-specific results folders).",
+		help=(
+			"Output CSV filename/path (saved under "
+			"mode/latency-label/suite-specific results folders)."
+		),
 	)
 	parser.add_argument(
 		"--output-tex",
 		default=str(repo_root / "spade_strategy_speedup_heatmaps.tex"),
-		help="Output LaTeX filename/path (saved under mode/suite-specific results folders).",
+		help=(
+			"Output LaTeX filename/path (saved under "
+			"mode/latency-label/suite-specific results folders)."
+		),
 	)
 	parser.add_argument(
 		"--output-text",
@@ -432,7 +467,10 @@ def main() -> int:
 	parser.add_argument(
 		"--log-dir",
 		default=str(repo_root / "spade_collect_logs"),
-		help="Log directory name/path (created under mode/suite-specific results folders).",
+		help=(
+			"Log directory name/path (created under "
+			"mode/latency-label/suite-specific results folders)."
+		),
 	)
 	parser.add_argument(
 		"--print-output",
@@ -456,7 +494,7 @@ def main() -> int:
 
 	args = parser.parse_args()
 	mode_name = "analysis" if args.analysis_mode else "regular"
-	mode_results_root = (repo_root / "spade_results" / mode_name).resolve()
+	mode_results_base_root = (repo_root / "spade_results" / mode_name).resolve()
 
 	program = Path(args.program).resolve()
 	cwd = Path(args.cwd).resolve()
@@ -495,6 +533,14 @@ def main() -> int:
 	# Load balancing is incompatible with this allocation flow.
 	env["PIMEVAL_LOAD_BALANCE"] = "0"
 	env["PIMEVAL_ANALYSIS_MODE"] = "1" if args.analysis_mode else "0"
+	latency_folder_label = derive_latency_folder_label(env)
+	mode_results_root = (mode_results_base_root / latency_folder_label).resolve()
+
+	print(f"Latency folder label: {latency_folder_label}")
+	for env_var, _ in LATENCY_ENV_VARS:
+		value = env.get(env_var, "")
+		display_value = value if value.strip() else "default"
+		print(f"  {env_var}={display_value}")
 
 	suite_results: List[Tuple[ComparisonSpec, Path, Path, Dict[str, Path], List[HeatmapCell]]] = []
 

@@ -6,7 +6,7 @@
 PROJ_ROOT = ../../..
 include ${PROJ_ROOT}/Makefile.common
 
-DEPS += $(UTIL_DIR)/utilGrid.h
+DEPS += $(UTIL_DIR)/utilStencilPIM.h
 
 SRCS := test_partition.cpp
 EXECS := $(SRCS:.cpp=.out)

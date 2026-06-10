@@ -17,7 +17,7 @@
 #endif
 
 #include "util.h"
-#include "utilGrid.h"
+#include "utilStencilPIM.h"
 #include "libpimeval.h"
 
 // Params ---------------------------------------------------------------------

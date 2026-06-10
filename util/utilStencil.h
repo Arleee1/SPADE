@@ -1,17 +1,46 @@
-// Util: Grid utilities
+// Util: Stencil utilities
 // Copyright (c) 2026 University of Virginia
 // This file is licensed under the MIT License.
 // See the LICENSE file in the root of this repository for more details.
 
-#ifndef PIM_FUNC_SIM_APPS_UTIL_GRID_H
-#define PIM_FUNC_SIM_APPS_UTIL_GRID_H
+#ifndef PIM_FUNC_SIM_APPS_UTIL_STENCIL_H
+#define PIM_FUNC_SIM_APPS_UTIL_STENCIL_H
 
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <span>
-#include <utility>
-#include "libpimeval.h"
+
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
+//! @brief  Stencil pattern types
+//! @note   Mirrors the StencilPattern enum in libpimeval.h. Defined here (guarded
+//!         by PIM_STENCIL_PATTERN_DEFINED) so baselines can use the same pattern
+//!         selectors without pulling in the full libpimeval header. Keep the
+//!         enumerator values in sync with libpimeval.h.
+#ifndef PIM_STENCIL_PATTERN_DEFINED
+#define PIM_STENCIL_PATTERN_DEFINED
+enum StencilPattern {
+  STENCIL_PATTERN_BOX = 0,
+  STENCIL_PATTERN_STAR,
+};
+#endif
+
+uint64_t calculateStencilAreaInt(const StencilPattern stencilPattern, const uint64_t radius) {
+  uint64_t stencilAreaInt;
+  if(stencilPattern == STENCIL_PATTERN_BOX) {
+    stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
+  } else if(stencilPattern == STENCIL_PATTERN_STAR) {
+    stencilAreaInt = 4 * radius + 1;
+  } else {
+    std::cerr << "Unrecognized stencil pattern!" << std::endl;
+    std::exit(1);
+  }
+  return stencilAreaInt;
+}
 
 struct GridPartitioning {
   uint64_t tileHeight;
@@ -127,52 +156,6 @@ GridPartitioning calculateGridPartitioning(const uint64_t gridWidth, const uint6
   assert(partitioning.totalCores == partitioning.numCoresVertical * partitioning.numCoresHorizontal);
 
   return partitioning;
-}
-
-//! @brief  Sums the neighbors of each element in a stencil row to compute the horizontal stencil sum
-//!
-//! Sums radius number of elemements to the left and right of center element, including center element
-//! Puts each result pimRowSum[i] where i is the center index
-//! Formula: pimRowSum[i] = Σ (j ∈ [i-radius, i+radius]) mid[j]
-//! Works by shifting mid to the left and right and adding shifted versions
-//! @param[in]  mid  PIM row to be summed
-//! @param[out]  pimRowSum  The resultant PIM object to place the sum into
-//! @param[in,out]  shiftBackup  Temporary PIM object used for calculations
-//! @param[in]  radius  The stencil radius
-void sumStencilRow(PimObjId mid, PimObjId pimRowSum, PimObjId shiftBackup, const uint64_t radius) {
-  PimStatus status;
-
-  if(radius == 0) {
-    return;
-  }
-
-  status = pimCopyObjectToObject(mid, shiftBackup);
-  assert (status == PIM_OK);
-
-  status = pimShiftElementsRight(shiftBackup);
-  assert (status == PIM_OK);
-
-  status = pimAdd(mid, shiftBackup, pimRowSum);
-  assert (status == PIM_OK);
-
-  for(uint64_t shiftIter=1; shiftIter<radius; ++shiftIter) {
-    status = pimShiftElementsRight(shiftBackup);
-    assert (status == PIM_OK);
-
-    status = pimAdd(pimRowSum, shiftBackup, pimRowSum);
-    assert (status == PIM_OK);
-  }
-
-  status = pimCopyObjectToObject(mid, shiftBackup);
-  assert (status == PIM_OK);
-
-  for(uint64_t shiftIter=0; shiftIter<radius; ++shiftIter) {
-    status = pimShiftElementsLeft(shiftBackup);
-    assert (status == PIM_OK);
-
-    status = pimAdd(pimRowSum, shiftBackup, pimRowSum);
-    assert (status == PIM_OK);
-  }
 }
 
 template <typename GridType, typename StencilOp>

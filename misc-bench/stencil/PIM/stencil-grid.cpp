@@ -20,7 +20,7 @@
 #endif
 
 #include "util.h"
-#include "utilGrid.h"
+#include "utilStencilPIM.h"
 #include "libpimeval.h"
 
 // Params ---------------------------------------------------------------------
@@ -134,19 +134,6 @@ struct Params getInputParams(int argc, char **argv)
     }
   }
   return p;
-}
-
-uint64_t calculateStencilAreaInt(const StencilPattern stencilPattern, const uint64_t radius) {
-  uint64_t stencilAreaInt;
-  if(stencilPattern == STENCIL_PATTERN_BOX) {
-    stencilAreaInt = (2 * radius + 1) * (2 * radius + 1);
-  } else if(stencilPattern == STENCIL_PATTERN_STAR) {
-    stencilAreaInt = 4 * radius + 1;
-  } else {
-    std::cerr << "Unrecognized stencil pattern!" << std::endl;
-    std::exit(1);
-  }
-  return stencilAreaInt;
 }
 
 //! @brief  Computes one iteration of one chunk of the stencil for the star pattern

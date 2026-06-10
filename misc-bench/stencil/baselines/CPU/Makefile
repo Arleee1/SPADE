@@ -1,8 +1,11 @@
-# Compiler
+# Makefile: C++ version of stencil on CPU
+# Copyright (c) 2026 University of Virginia
+# This file is licensed under the MIT License.
+# See the LICENSE file in the root of this repository for more details.
+
 CXX := g++
 
-# Compiler flags
-CXXFLAGS := -Wall -Wextra -Werror -std=c++17 -O3 -fopenmp
+CXXFLAGS := -Wall -Wextra -Werror -std=c++20 -O3 -fopenmp
 
 # Executable name
 EXEC := stencil.out

@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "../../../util/utilGrid.h"
+#include "../../../util/utilStencilPIM.h"
 
 struct PartitionCase {
 	std::string name;

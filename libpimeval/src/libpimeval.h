@@ -356,10 +356,16 @@ enum PimAllocationStrategy {
 };
 
 //! @brief  Stencil pattern types
+//! @note   Guarded by PIM_STENCIL_PATTERN_DEFINED so baselines may define the
+//!         same enum (see util/utilStencil.h) without a redefinition conflict.
+//!         Keep the enumerator values in sync between the two locations.
+#ifndef PIM_STENCIL_PATTERN_DEFINED
+#define PIM_STENCIL_PATTERN_DEFINED
 enum StencilPattern {
   STENCIL_PATTERN_BOX = 0,
   STENCIL_PATTERN_STAR,
 };
+#endif
 
 //! @brief Allocate grid of cores, with specified sizes of data per core
 //! @param allocType: type of allocation (e.g. PIM_ALLOC_AUTO)

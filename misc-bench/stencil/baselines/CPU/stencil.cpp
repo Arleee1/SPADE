@@ -176,10 +176,7 @@ int main(int argc, char* argv[])
   std::span<float> x(x_);
   std::span<float> y(y_);
 
-  auto start = std::chrono::high_resolution_clock::now();
-
-  for (int32_t i = 0; i < WARMUP; i++)
-  {
+  auto runStencilPass = [&]() {
     if(params.stencilPattern == STENCIL_PATTERN_BOX) {
       stencilCpu(x, y, params.iterations, params.radius, params.gridWidth, params.gridHeight, stencilCpuKernelBox);
     } else if(params.stencilPattern == STENCIL_PATTERN_STAR) {
@@ -188,11 +185,27 @@ int main(int argc, char* argv[])
       std::cerr << "Unrecognized stencil pattern!" << std::endl;
       std::exit(1);
     }
+  };
+
+  // Untimed warmup: spin up the OpenMP thread team and first-touch the output
+  // buffer so neither cost lands inside the measured region.
+  for (int32_t i = 0; i < WARMUP; i++)
+  {
+    runStencilPass();
   }
 
+  // Timed measurement: average over MEASURE_REPS passes. Repeating keeps the
+  // measured work large relative to any remaining fixed overhead, especially
+  // for small grids.
+  constexpr int32_t MEASURE_REPS = 10;
+  auto start = std::chrono::high_resolution_clock::now();
+  for (int32_t i = 0; i < MEASURE_REPS; i++)
+  {
+    runStencilPass();
+  }
   auto end = std::chrono::high_resolution_clock::now();
 
-  std::chrono::duration<double, std::milli> elapsedTime = (end - start)/WARMUP;
+  std::chrono::duration<double, std::milli> elapsedTime = (end - start)/MEASURE_REPS;
   std::cout << "Duration: " << std::fixed << std::setprecision(3) << elapsedTime.count() << " ms." << std::endl;
 
   return 0;

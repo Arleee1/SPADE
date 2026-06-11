@@ -166,8 +166,14 @@ void stencilCpu(std::span<GridType> &src, std::span<GridType> &dst, const uint64
     const uint64_t endY = height - startY;
     const uint64_t startX = radius*iter;
     const uint64_t endX = width - startX;
+    // Only go parallel once there is enough work to amortize the OpenMP
+    // fork/join/barrier overhead; small grids run serially to avoid a fixed
+    // thread-management floor dominating the measured runtime.
+    const uint64_t activeGridPoints =
+        (endX > startX && endY > startY) ? (endX - startX) * (endY - startY) : 0;
 #if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) if(activeGridPoints > 100000)
+// #pragma omp parallel for collapse(2)
 #endif
     for(uint64_t gridY=startY; gridY<endY; ++gridY) {
       for(uint64_t gridX=startX; gridX<endX; ++gridX) {
